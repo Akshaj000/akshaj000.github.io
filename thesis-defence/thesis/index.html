@@ -1,0 +1,2056 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex">
+<title>VR Museum Thesis Reader</title>
+<style>
+:root{--bg:#f0eeea;--pg:#fff;--fg:#17150f;--mut:#6f6860;--line:#ddd7cd;--rule:#2a2620;
+      --acc:#7a4b2a;--bad:#a33;--ok:#2c6e49;--hl:#ffe9a8;--sh:rgba(0,0,0,.13)}
+:root[data-theme=dark]{--bg:#0f0f12;--pg:#1a191e;--fg:#e9e6e0;--mut:#948d86;--line:#2e2b33;
+      --rule:#6d665e;--acc:#d59a6a;--bad:#e07a7a;--ok:#6fbf8f;--hl:#5a4a1e;--sh:rgba(0,0,0,.5)}
+*{box-sizing:border-box}
+/* The default scrollbars sit on their own bright track and read as part of the browser
+   rather than part of the page. These take their colour from the theme, so the bar is a
+   faint mark on whatever surface it is over and darkens only while it is being used. */
+*{scrollbar-width:thin;scrollbar-color:color-mix(in srgb,var(--fg) 22%,transparent) transparent}
+::-webkit-scrollbar{width:10px;height:10px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:color-mix(in srgb,var(--fg) 20%,transparent);
+  border-radius:99px;border:3px solid transparent;background-clip:content-box}
+::-webkit-scrollbar-thumb:hover{background:color-mix(in srgb,var(--fg) 34%,transparent);
+  background-clip:content-box}
+::-webkit-scrollbar-thumb:active{background:color-mix(in srgb,var(--acc) 55%,transparent);
+  background-clip:content-box}
+::-webkit-scrollbar-corner{background:transparent}
+/* a table or a code block scrolls sideways inside the page, so its bar sits lower still
+   until the pointer is actually over it */
+.tscroll::-webkit-scrollbar-thumb,pre.src::-webkit-scrollbar-thumb{
+  background:color-mix(in srgb,var(--fg) 13%,transparent);background-clip:content-box}
+.tscroll:hover::-webkit-scrollbar-thumb,pre.src:hover::-webkit-scrollbar-thumb{
+  background:color-mix(in srgb,var(--fg) 30%,transparent);background-clip:content-box}
+body{margin:0;background:var(--bg);color:var(--fg);font:15px/1.6 ui-sans-serif,system-ui,sans-serif}
+header{position:sticky;top:0;background:var(--bg);border-bottom:1px solid var(--line);
+  padding:9px 16px;display:flex;gap:9px;align-items:center;z-index:20}
+h1{font-size:13px;margin:0;font-weight:600;letter-spacing:.02em}
+button{font:13px ui-sans-serif;padding:6px 12px;border:1px solid var(--line);background:var(--pg);
+  color:var(--fg);border-radius:6px;cursor:pointer}
+button.primary{background:var(--acc);color:#fff;border-color:transparent}
+button:disabled{opacity:.45;cursor:default}
+#find{font:13px ui-sans-serif;padding:6px 10px;border:1px solid var(--line);border-radius:6px;
+  background:var(--pg);color:var(--fg);width:210px}
+#status{color:var(--mut);font-size:12px;margin-left:auto;text-align:right;max-width:34%}
+#menu{position:relative}
+#mtog{font-size:15px;line-height:1;padding:5px 11px}
+#mlist{position:absolute;right:0;top:calc(100% + 6px);min-width:210px;background:var(--pg);
+  border:1px solid var(--line);border-radius:8px;box-shadow:0 8px 26px var(--sh);padding:6px;
+  display:none;flex-direction:column;gap:2px;z-index:40}
+#menu.on #mlist{display:flex}
+#mlist button{border:0;background:transparent;text-align:left;padding:7px 10px;border-radius:6px}
+#mlist button:hover{background:color-mix(in srgb,var(--acc) 10%,transparent)}
+#mlist .mrow{display:flex;align-items:center;justify-content:space-between;gap:10px;
+  padding:4px 10px 8px;border-bottom:1px solid var(--line);margin-bottom:4px;
+  font:12px ui-sans-serif;color:var(--mut)}
+#pdf{display:none;width:100%;height:calc(100vh - 45px);border:0}
+/* The rails are fixed, so the reading column is centred in what is left of the window
+   rather than shoved sideways by a margin. Without this the page sits hard against the
+   contents list with the whole right half of the screen empty. */
+main{margin:24px 0 120px;padding:0 var(--rr,0) 0 var(--rl,0);zoom:var(--z,1)}
+main>*{max-width:760px;margin-left:auto;margin-right:auto}
+body.toc{--rl:280px}
+body.dock{--rr:calc(var(--dockw,470px) + 10px)}
+body.dockfull{--rr:0}
+body.dockfull #dock{border-left:0}
+/* a full-width panel gets a readable measure rather than one very long line of prose */
+body.dockfull #dbody{padding:16px 24px}
+body.dockfull #panel,body.dockfull #cpanel{max-width:900px}
+#toc{position:fixed;left:0;top:45px;bottom:0;width:270px;overflow-y:auto;padding:14px 10px 40px 16px;
+  border-right:1px solid var(--line);background:var(--bg);z-index:15;display:none}
+body.toc #toc{display:block}
+#toc a{display:block;color:var(--mut);text-decoration:none;font:12.5px/1.4 ui-sans-serif;
+  padding:4px 8px;border-radius:5px;cursor:pointer}
+#toc a:hover{background:color-mix(in srgb,var(--acc) 10%,transparent);color:var(--fg)}
+#toc a.l1{font-weight:600;color:var(--fg);margin-top:12px;font-size:13px}
+#toc a.l2{padding-left:16px}
+#toc a.l3{padding-left:30px;font-size:12px}
+#toc a.on{background:color-mix(in srgb,var(--acc) 16%,transparent);color:var(--fg)}
+#toc a i{font-style:normal;color:var(--mut);margin-right:6px}
+h2.ch,h3.se,h4.su{scroll-margin-top:58px}
+@media(max-width:1250px){body.dock{--rr:0}body.dock #dock{width:100%;border-left:0}}
+#zoom,#rate{display:flex;align-items:center;border:1px solid var(--line);border-radius:6px;overflow:hidden}
+#rate button{border:0;border-radius:0;padding:6px 10px;background:var(--pg)}
+#rate span{font:12px ui-sans-serif;color:var(--mut);min-width:42px;text-align:center;
+  border-left:1px solid var(--line);border-right:1px solid var(--line);padding:6px 0;cursor:pointer}
+#zoom button{border:0;border-radius:0;padding:6px 10px;background:var(--pg)}
+#zoom span{font:12px ui-sans-serif;color:var(--mut);min-width:42px;text-align:center;
+  border-left:1px solid var(--line);border-right:1px solid var(--line);padding:6px 0;cursor:pointer}
+.page{background:var(--pg);box-shadow:0 2px 10px var(--sh);padding:64px 74px;margin-bottom:22px;
+  border-radius:2px}
+.cover{min-height:620px;display:flex;flex-direction:column;justify-content:center;text-align:center}
+.cover .kind{font:13px ui-sans-serif;letter-spacing:.22em;text-transform:uppercase;color:var(--mut);margin-bottom:34px}
+.cover .ti{font:400 30px/1.32 Georgia,serif;margin:0 0 40px}
+.cover .by{font:16px/1.9 Georgia,serif}
+.cover .by span{color:var(--mut);font-size:13px;display:block;letter-spacing:.06em;text-transform:uppercase;margin-top:22px}
+h2.ch{font:400 27px/1.28 Georgia,serif;margin:0 0 18px;padding-bottom:10px;border-bottom:1px solid var(--rule)}
+h2.ch small{display:block;font:13px ui-sans-serif;letter-spacing:.2em;text-transform:uppercase;color:var(--mut);margin-bottom:11px}
+h3.se{font:600 18px/1.3 Georgia,serif;margin:20px 0 6px}
+h4.su{font:600 15.5px/1.35 Georgia,serif;margin:14px 0 4px}
+h3.se em,h4.su em{font-style:normal;color:var(--mut);font-weight:400;margin-right:.5em}
+p.par{font:15.5px/1.42 Georgia,serif;margin:0;text-indent:1.7em;text-align:justify;
+  hyphens:auto;cursor:text;border-radius:3px;padding:1px 5px;margin-left:-5px}
+h2.ch+p.par,h3.se+p.par,h4.su+p.par,.box p.par:first-child,figure+p.par,.tblock+p.par,
+.eq+p.par,ul.it+p.par,ol.it+p.par{text-indent:0}
+p.par:hover{background:color-mix(in srgb,var(--acc) 9%,transparent)}
+.struct{cursor:pointer;border-radius:4px;outline:1px solid transparent;transition:outline-color .12s}
+.struct:hover{outline-color:color-mix(in srgb,var(--acc) 45%,transparent)}
+table.tb{border-collapse:collapse;width:100%;table-layout:auto;
+  font:12px/1.4 ui-sans-serif;font-variant-numeric:tabular-nums;margin:0}
+table.tb th{border-bottom:1px solid var(--rule);padding:6px 7px;font-weight:600;
+  text-align:left;vertical-align:bottom}
+table.tb thead tr:first-child th{border-top:1.5px solid var(--rule)}
+table.tb td{padding:5px 7px;border-bottom:1px solid var(--line);vertical-align:top}
+table.tb tbody tr:last-child td{border-bottom:1.5px solid var(--rule)}
+table.tb th:first-child,table.tb td:first-child{padding-left:0}
+table.tb th:last-child,table.tb td:last-child{padding-right:0}
+figure,.tblock{margin:16px 0;text-align:center;width:100%}
+figure img{width:100%;height:auto;border:1px solid var(--line);border-radius:2px;display:block;margin:0 auto}
+.tscroll{overflow-x:auto}
+figcaption,.cap{font:12.5px/1.5 ui-sans-serif;color:var(--mut);text-align:justify;hyphens:auto}
+figcaption{margin-top:7px}
+.cap{margin-bottom:7px}
+.cap b,figcaption b{color:var(--fg);font-weight:600}
+.todo{font:12.5px/1.55 ui-sans-serif;color:var(--acc);border-left:3px solid var(--acc);padding:6px 11px;margin:14px 0}
+.box{border:1px solid var(--rule);border-radius:3px;padding:14px 18px;margin:18px 0;
+  background:color-mix(in srgb,var(--fg) 3%,transparent)}
+.box h5{font:600 14px Georgia,serif;margin:0 0 8px}
+ul.it,ol.it{font:15px/1.45 Georgia,serif;margin:7px 0;padding-left:20px}
+.m{font-family:'Latin Modern Math','Cambria Math',Georgia,serif;font-style:italic;white-space:nowrap}
+.m .up{font-style:normal}
+.eq{display:block;text-align:center;margin:11px 0;font-size:16px}
+.fn{color:var(--acc);cursor:help;vertical-align:super;font-size:.8em}
+.ed{margin:0 0 12px}
+textarea{width:100%;border:1px solid var(--acc);border-radius:6px;background:var(--bg);color:var(--fg);
+  font:13px/1.65 ui-monospace,SFMono-Regular,Menlo,monospace;padding:10px;resize:none;outline:none;overflow:hidden}
+.row{display:flex;gap:8px;align-items:center;margin-top:6px;min-height:26px}
+.msg{font:13px ui-sans-serif}.msg.bad{color:var(--bad)}.msg.ok{color:var(--ok)}
+.msg button{margin-left:6px;padding:3px 9px;font-size:12px}
+button.del{margin-left:auto;color:var(--bad);border-color:color-mix(in srgb,var(--bad) 35%,var(--line))}
+mark{background:var(--hl);color:inherit;border-radius:2px}
+.addnote{position:absolute;left:-30px;top:2px;width:22px;height:22px;border-radius:50%;
+  border:1px solid var(--line);background:var(--pg);color:var(--mut);font:14px/20px ui-sans-serif;
+  text-align:center;cursor:pointer;opacity:0;transition:opacity .12s}
+.holder{position:relative}
+.holder:hover .addnote{opacity:1}
+.speak{position:absolute;left:-30px;top:30px;width:22px;height:22px;border-radius:50%;
+  border:1px solid var(--line);background:var(--pg);color:var(--mut);font:12px/20px ui-sans-serif;
+  text-align:center;cursor:pointer;opacity:0;transition:opacity .12s;user-select:none}
+.holder:hover .speak{opacity:1}
+.speak.on{opacity:1;background:var(--acc);color:#fff;border-color:transparent}
+/* the paragraph being read, so the eye can follow the voice */
+.holder.reading > p.par,.holder.reading > .cap{background:color-mix(in srgb,var(--hl) 60%,transparent)}
+.ins{height:0;position:relative;z-index:3}
+.ins .bar{position:absolute;left:0;right:0;top:-10px;height:20px;cursor:pointer;opacity:0;
+  display:flex;align-items:center;justify-content:center;transition:opacity .12s}
+.ins .bar::before{content:'';position:absolute;left:0;right:0;top:50%;height:1px;
+  background:color-mix(in srgb,var(--acc) 45%,transparent)}
+.ins .bar::after{content:'+ paragraph';position:relative;background:var(--pg);color:var(--acc);
+  font:11px ui-sans-serif;padding:0 8px}
+.holder:hover + .ins .bar,.ins .bar:hover{opacity:1}
+.note-i{background:color-mix(in srgb,var(--hl) 55%,transparent);border-left:3px solid var(--acc);
+  padding:7px 11px;margin:0 0 12px;font:13px/1.55 ui-sans-serif;border-radius:0 5px 5px 0}
+.note-i button{border:0;background:none;color:var(--mut);cursor:pointer;float:right;padding:0 0 0 8px}
+/* One dock on the right holds both panels as tabs. Two separate floating overlays meant
+   two buttons in the header and two things that could cover the text being edited. */
+#dock{position:fixed;right:0;top:45px;bottom:0;width:var(--dockw,470px);z-index:18;background:var(--pg);
+  border-left:1px solid var(--line);display:none;flex-direction:column}
+body.dock #dock{display:flex}
+#dtabs{display:flex;align-items:center;gap:2px;padding:7px 8px;border-bottom:1px solid var(--line);
+  flex:none}
+#dtabs button{border:0;background:transparent;color:var(--mut);padding:6px 11px;border-radius:6px}
+#dtabs button.on{background:color-mix(in srgb,var(--acc) 14%,transparent);color:var(--fg);
+  font-weight:600}
+#dclose{font-size:15px;line-height:1;padding:5px 9px}
+#dwide{margin-left:auto;font-size:12px;padding:5px 9px}
+/* drag the left edge to resize; the handle is wider than it looks so it is easy to grab */
+#dgrip{position:absolute;left:-3px;top:0;bottom:0;width:7px;cursor:col-resize;z-index:2}
+#dgrip:hover,#dgrip.on{background:color-mix(in srgb,var(--acc) 40%,transparent)}
+body.resizing{user-select:none;cursor:col-resize}
+#dbody{flex:1;overflow:auto;padding:14px}
+#panel,#cpanel,#kpanel,#gpanel{display:none}
+#panel.on,#cpanel.on,#kpanel.on,#gpanel.on{display:block}
+/* concept notes */
+#gfind{width:100%;font:13px ui-sans-serif;padding:7px 10px;border:1px solid var(--line);
+  border-radius:6px;background:var(--pg);color:var(--fg);margin-bottom:10px}
+.garea{font:600 10.5px ui-sans-serif;letter-spacing:.09em;text-transform:uppercase;
+  color:var(--mut);margin:14px 0 4px}
+.gc{border-bottom:1px solid var(--line);padding:8px 2px}
+.gc>.h{cursor:pointer}
+.gc>.h b{font-size:13px}
+.gc .aka{font-size:11px;color:var(--mut)}
+.gc .one{font-size:12.5px;line-height:1.5;color:var(--mut);margin:2px 0 0}
+.gbody{padding:8px 0 6px;font-size:13px;line-height:1.6}
+.gbody p{margin:0 0 9px}
+.gbody h6{margin:13px 0 5px;font:600 10.5px ui-sans-serif;letter-spacing:.09em;
+  text-transform:uppercase;color:var(--mut)}
+.gbody .here{border-left:3px solid var(--acc);padding:7px 11px;margin:0 0 9px;
+  background:color-mix(in srgb,var(--acc) 6%,transparent)}
+.gbody figure.gd{margin:10px 0;text-align:center}
+.gbody figure.gd svg{max-width:100%;height:auto;color:var(--fg)}
+.gbody ul{margin:0 0 9px;padding-left:18px}
+.gbody li{margin:0 0 4px}
+.gbody a{color:var(--acc)}
+.gform{display:block;text-align:center;margin:10px 0;font-size:15px}
+/* what produced each results section */
+.ksec{border-bottom:1px solid var(--line);padding:9px 2px}
+.ksec>.h{cursor:pointer;display:flex;align-items:baseline;gap:8px}
+.ksec>.h b{font-size:13px}
+.ksec .stale{font-size:11px;color:var(--bad);white-space:nowrap}
+.ksec .fresh{font-size:11px;color:var(--mut);white-space:nowrap}
+.kbody{padding:8px 0 4px}
+.kcmd{font:11.5px/1.5 ui-monospace,Menlo,monospace;background:color-mix(in srgb,var(--fg) 6%,transparent);
+  padding:6px 9px;border-radius:5px;margin:0 0 10px;overflow-x:auto;white-space:pre}
+.kf{border-left:2px solid var(--line);padding:0 0 0 10px;margin:0 0 9px}
+.kf .nm{font:12px ui-monospace,Menlo,monospace;color:var(--acc);cursor:pointer}
+.kf .meta{font-size:11px;color:var(--mut)}
+.kf .doc{font-size:12px;line-height:1.5;color:var(--mut);margin-top:3px}
+.kf.miss .nm{color:var(--bad);cursor:default;text-decoration:line-through}
+pre.src{font:11.5px/1.5 ui-monospace,Menlo,monospace;background:var(--bg);border:1px solid var(--line);
+  border-radius:6px;padding:9px 10px;margin:6px 0 0;overflow-x:auto;white-space:pre}
+pre.src .ln{color:var(--mut);user-select:none}
+.s-kw{color:var(--acc);font-weight:600}
+.s-str{color:var(--ok)}
+.s-com{color:var(--mut);font-style:italic}
+.s-num{color:#b4761f}
+:root[data-theme=dark] .s-num{color:#d8a657}
+.s-dec{color:var(--acc)}
+#panel h4,#cpanel h4{margin:0 0 10px;font:600 13px ui-sans-serif}
+/* The citations table is dense; in the rail it reads as a stack of cards instead. */
+#cpanel table.cit thead{display:none}
+#cpanel table.cit tr.r td{padding:9px 2px}
+#cpanel table.cit tr.det td{border:0;padding:0 2px 16px}
+.lbl{font-weight:600}
+.sub{color:var(--mut);font-size:11.5px;margin-top:2px}
+.entry{margin:0 0 10px;font:12px/1.5 Georgia,serif;color:var(--mut)}
+/* the verdict in a sentence, because a four-letter tag does not say what to do about it */
+.mean{margin:0 0 12px;font-size:13px;font-weight:600;padding:8px 11px;border-radius:6px;
+  border-left:3px solid var(--mut);background:color-mix(in srgb,var(--fg) 4%,transparent)}
+.mean.ok{border-left-color:var(--ok)} .mean.warn{border-left-color:var(--acc)}
+.mean.bad{border-left-color:var(--bad)}
+.fixed{margin:-6px 0 12px;font-size:12px;color:var(--ok)}
+#cpanel h6{margin:14px 0 6px;font:600 11px ui-sans-serif;letter-spacing:.09em;
+  text-transform:uppercase;color:var(--mut)}
+#cpanel blockquote{margin:0;padding:9px 12px;border-left:3px solid var(--acc);
+  background:color-mix(in srgb,var(--acc) 6%,transparent);font:13px/1.55 Georgia,serif}
+#cpanel .why{margin:0;font-size:12.5px;line-height:1.55}
+#cpanel .none{margin:0;font-size:12.5px;color:var(--mut);font-style:italic}
+#cpanel .u{margin:0 0 8px;padding-left:10px;border-left:2px solid var(--line);
+  font-size:12.5px;line-height:1.5;color:var(--mut)}
+#cpanel .u b{color:var(--fg);font-weight:600;font-size:11.5px;letter-spacing:.03em}
+a.open{font-size:12.5px;color:var(--acc)}
+#cfilt{display:flex;gap:7px;flex-wrap:wrap;margin-bottom:12px}
+#cfilt button{font-size:12px;padding:5px 11px}
+#cfilt button.on{background:var(--acc);color:#fff;border-color:transparent}
+table.cit{width:100%;border-collapse:collapse;font:12.5px/1.45 ui-sans-serif}
+table.cit th{text-align:left;padding:6px 8px;border-bottom:1px solid var(--rule);font-weight:600;
+  position:sticky;top:0;background:var(--pg)}
+table.cit td{padding:6px 8px;border-bottom:1px solid var(--line);vertical-align:top}
+table.cit tr.r{cursor:pointer}
+table.cit tr.r:hover td{background:color-mix(in srgb,var(--acc) 7%,transparent)}
+.v{font:10.5px ui-sans-serif;letter-spacing:.05em;text-transform:uppercase;padding:2px 7px;
+  border-radius:999px;border:1px solid var(--line);color:var(--mut);white-space:nowrap}
+.v.ok{color:var(--ok);border-color:var(--ok)} .v.warn{color:var(--acc);border-color:var(--acc)}
+.v.bad{color:var(--bad);border-color:var(--bad)}
+.det{background:color-mix(in srgb,var(--fg) 3%,transparent)}
+.det .u{margin:5px 0;padding-left:10px;border-left:2px solid var(--line);color:var(--mut)}
+.det .u b{color:var(--fg);font-weight:600}
+.cmp{display:grid;grid-template-columns:1fr 1fr;gap:20px}
+.cmp h6{margin:0 0 7px;font:600 11.5px ui-sans-serif;letter-spacing:.07em;
+  text-transform:uppercase;color:var(--mut)}
+.cmp blockquote{margin:0 0 8px;padding:8px 11px;border-left:3px solid var(--acc);
+  background:color-mix(in srgb,var(--acc) 6%,transparent);font:12.5px/1.5 Georgia,serif}
+.cmp .why{margin:0 0 6px;font-size:12.5px}
+.cmp .src{margin:0;font-size:11.5px;color:var(--mut)}
+.cmp .none{margin:0;font-size:12.5px;color:var(--mut);font-style:italic}
+@media(max-width:900px){.cmp{grid-template-columns:1fr}}
+#panel .n{border-top:1px solid var(--line);padding:9px 0;font:13px/1.5 ui-sans-serif}
+#panel .n .w{color:var(--mut);font-size:11.5px;text-transform:uppercase;letter-spacing:.05em}
+#panel .acts{display:flex;gap:8px;margin-top:10px}
+textarea.nt{border-color:var(--line);font:13px/1.5 ui-sans-serif;margin-bottom:6px}
+.ntwrap{margin:0 0 12px}
+.ntrow{display:flex;gap:8px;align-items:center}
+.nthint{font:11.5px ui-sans-serif;color:var(--mut)}
+.cite{color:var(--acc);cursor:pointer;border-bottom:1px dotted color-mix(in srgb,var(--acc) 50%,transparent)}
+#card{position:fixed;z-index:60;max-width:430px;background:var(--pg);border:1px solid var(--line);
+  border-radius:9px;box-shadow:0 6px 26px var(--sh);padding:14px 16px;display:none;
+  font:13px/1.6 ui-sans-serif}
+#card .k{font:12px ui-monospace,Menlo,monospace;color:var(--mut)}
+#card .f{margin:7px 0 0;font:13px/1.6 Georgia,serif}
+#card .tags{display:flex;gap:7px;margin-top:10px;flex-wrap:wrap;align-items:center}
+#card .tag{font:11px ui-sans-serif;letter-spacing:.06em;text-transform:uppercase;
+  padding:3px 8px;border-radius:999px;border:1px solid var(--line);color:var(--mut)}
+#card .tag.ok{color:var(--ok);border-color:var(--ok)}
+#card .tag.warn{color:var(--acc);border-color:var(--acc)}
+#card .tag.bad{color:var(--bad);border-color:var(--bad)}
+#card .note{margin-top:9px;padding-top:9px;border-top:1px solid var(--line);color:var(--mut);font-size:12.5px}
+#card a{color:var(--acc)}
+.xref{color:var(--acc);cursor:pointer;border-bottom:1px dotted color-mix(in srgb,var(--acc) 45%,transparent)}
+.cite.bad,.xref.bad{color:var(--bad);border-bottom-color:var(--bad)}
+tr.r.flash td{animation:flash 1.4s ease-out}
+.flashref{animation:flash 1.5s ease-out}
+p.par.ro{cursor:default}
+p.par.ro:hover{background:transparent}
+@keyframes flash{from{background:var(--hl)}to{background:transparent}}
+.refs p{font:12.5px/1.6 Georgia,serif;margin:0 0 10px;padding-left:26px;text-indent:-26px;color:var(--fg)}
+@media(max-width:820px){.page{padding:34px 26px}main{padding:0 12px}}
+/* the Study and Data tabs */
+#spanel,#dpanel,#vpanel{display:none;font-size:13px;line-height:1.6}
+#spanel.on,#dpanel.on,#vpanel.on{display:block}
+.st-bar{position:sticky;top:-14px;background:var(--pg);padding:0 0 10px;margin:0 0 6px;z-index:2;
+  border-bottom:1px solid var(--line)}
+.st-bar input[type=text],.st-bar input:not([type]){width:100%;font:13px ui-sans-serif;padding:7px 10px;
+  border:1px solid var(--line);border-radius:6px;background:var(--pg);color:var(--fg);box-sizing:border-box}
+.st-tg{display:flex;gap:10px;align-items:center;margin-top:8px;font-size:12px;color:var(--mut);flex-wrap:wrap}
+.st-tg label{display:flex;gap:5px;align-items:center;cursor:pointer}
+.st-tg button{font-size:12px;padding:4px 10px}
+.st-tg .grow{margin-left:auto}
+.st-crumb{font-size:11.5px;color:var(--mut);margin:4px 0 8px;display:flex;flex-wrap:wrap;gap:4px;align-items:center}
+.st-crumb a{color:var(--mut);cursor:pointer;border-bottom:1px dotted var(--line)}
+.st-crumb a:hover{color:var(--acc)}
+.st-crumb .go{margin-left:auto;color:var(--acc);border:0;cursor:pointer}
+.st-h{display:flex;align-items:baseline;gap:8px;margin:2px 0 10px}
+.st-h b{font:600 16px/1.3 Georgia,serif}
+.st-num{font:12px ui-sans-serif;color:var(--mut);white-space:nowrap}
+.st-prog{margin-left:auto;font-size:11px;color:var(--mut);white-space:nowrap}
+.st-prog.done{color:var(--ok)}
+.st-gist{border-left:3px solid var(--acc);padding:8px 12px;margin:0 0 6px;
+  background:color-mix(in srgb,var(--acc) 7%,transparent);font:14px/1.6 Georgia,serif;border-radius:0 5px 5px 0}
+#spanel h6,#dpanel h6{margin:16px 0 6px;font:600 10.5px ui-sans-serif;letter-spacing:.09em;
+  text-transform:uppercase;color:var(--mut);display:flex;align-items:center;gap:8px}
+#spanel h6 button,#dpanel h6 button{margin-left:auto;font:11px ui-sans-serif;padding:3px 8px;
+  letter-spacing:0;text-transform:none}
+ol.st-steps,ul.st-traps{margin:0;padding-left:20px}
+ol.st-steps li,ul.st-traps li{margin:0 0 6px}
+ul.st-traps li::marker{color:var(--bad)}
+ul.st-traps{background:color-mix(in srgb,var(--bad) 5%,transparent);border-radius:6px;padding:8px 10px 4px 26px}
+table.st-nt{width:100%;border-collapse:collapse;font-size:12.5px}
+table.st-nt td{padding:4px 4px 1px;vertical-align:top}
+table.st-nt td.nv{text-align:right;font-weight:600;font-variant-numeric:tabular-nums;white-space:nowrap}
+table.st-nt tr.fr td{padding:0 4px 5px;font-size:11px;color:var(--mut);border-bottom:1px solid var(--line)}
+.st-q{border:1px solid var(--line);border-radius:7px;margin:0 0 7px;background:var(--pg)}
+.st-q .qq{display:flex;gap:8px;align-items:flex-start;padding:8px 10px;cursor:pointer}
+.st-q .qt{flex:1;font-weight:600}
+.st-q .qt::before{content:'\25b8  ';color:var(--mut)}
+.st-q.open .qt::before{content:'\25be  '}
+.st-q .kn{font-size:11px;color:var(--mut);white-space:nowrap;display:flex;gap:4px;align-items:center;cursor:pointer}
+.st-q .qa{display:none;padding:0 12px 10px 24px}
+.st-q.open .qa{display:block}
+.st-q .qs{font-size:11px;color:var(--mut);margin-top:5px;font-family:ui-monospace,Menlo,monospace}
+.st-q.known{border-color:color-mix(in srgb,var(--ok) 55%,var(--line))}
+.st-q.known .qt{color:var(--mut)}
+.st-q.hit{border-color:var(--acc)}
+.st-cf{margin:0 0 6px}
+.st-cf .nm{font:12px ui-monospace,Menlo,monospace;color:var(--acc);cursor:pointer}
+.st-cf pre.src{max-height:420px;overflow:auto}
+pre.src .hlline{background:color-mix(in srgb,var(--hl) 75%,transparent);display:inline-block;min-width:100%}
+.st-cons{display:flex;flex-wrap:wrap;gap:6px}
+.st-cons button{font-size:11.5px;padding:3px 9px;border-radius:99px}
+#spanel code,#dpanel code{font:11.5px ui-monospace,Menlo,monospace;
+  background:color-mix(in srgb,var(--fg) 7%,transparent);padding:1px 4px;border-radius:4px}
+.st-err{color:var(--bad);font-size:12px}
+.st-ov h5{margin:16px 0 6px;font:600 13px Georgia,serif}
+.st-ov .row{display:flex;gap:8px;align-items:center;padding:5px 6px;border-radius:5px;cursor:pointer;margin:0;min-height:0}
+.st-ov .row:hover{background:color-mix(in srgb,var(--acc) 9%,transparent)}
+.st-ov .row .t{flex:1}
+.st-ov .row .n{color:var(--mut);font-size:11.5px;min-width:38px}
+.st-ov .row.cur{background:color-mix(in srgb,var(--acc) 15%,transparent)}
+.st-bar2{width:70px;height:6px;border-radius:99px;background:color-mix(in srgb,var(--fg) 10%,transparent);overflow:hidden;flex:none}
+.st-bar2 i{display:block;height:100%;background:var(--ok)}
+.st-tot{font-size:12.5px;margin:4px 0 10px;color:var(--mut)}
+.st-hit{border-bottom:1px solid var(--line);padding:8px 0}
+.st-hit .ht{font-weight:600;cursor:pointer;color:var(--acc);margin-bottom:5px}
+.st-hit .hl{margin:0 0 5px;padding-left:10px;border-left:2px solid var(--line);color:var(--fg)}
+.st-hit mark{padding:0 1px}
+.dc{border-bottom:1px solid var(--line);padding:8px 2px}
+.dc>.h{cursor:pointer;display:flex;gap:8px;align-items:baseline}
+.dc>.h b{font-size:13.5px;flex:1}
+.dc .dbody{padding:8px 0 4px}
+.dc .dbody .st-h{display:none}
+/* the viva tab */
+#vpanel .seg button{font-size:11.5px;padding:3px 9px;text-transform:capitalize}
+#vpanel .seg button.on{background:var(--acc);color:#fff;border-color:transparent}
+.vq .lvl{font:10px ui-sans-serif;letter-spacing:.05em;text-transform:uppercase;padding:1px 6px;border-radius:99px;
+  border:1px solid var(--line);color:var(--mut);white-space:nowrap;align-self:center}
+.vq .lvl.hard{color:var(--bad);border-color:color-mix(in srgb,var(--bad) 50%,var(--line))}
+.vq .lvl.deep{color:var(--acc);border-color:color-mix(in srgb,var(--acc) 50%,var(--line))}
+.vq .qa{font:14px/1.6 Georgia,serif}
+.vmeta{display:flex;gap:10px;align-items:center;margin-top:7px;font:11.5px ui-sans-serif;color:var(--mut)}
+.vmeta .vsay{font-size:11px;padding:2px 8px}
+.vmeta .vsay.on{background:var(--acc);color:#fff;border-color:transparent}
+.vref{color:var(--acc);cursor:pointer}
+span.vref{color:var(--mut);cursor:default}
+details.vcat>summary{font-size:13px}
+.vprac{padding:14px 4px}
+.vprac .vcat2{font:11px ui-sans-serif;letter-spacing:.06em;text-transform:uppercase;color:var(--mut);margin-bottom:8px}
+.vprac .vbig{font:600 19px/1.4 Georgia,serif;margin:0 0 14px}
+.vprac .vans{font:15.5px/1.6 Georgia,serif;border-left:3px solid var(--acc);padding:8px 12px;
+  background:color-mix(in srgb,var(--acc) 7%,transparent);border-radius:0 6px 6px 0}
+.vprac .vbtns{display:flex;gap:8px;margin:14px 0 10px}
+details.st-sec{border-top:1px solid var(--line);padding:2px 0}
+details.st-sec>summary{cursor:pointer;list-style:none;padding:9px 2px;font:600 12.5px ui-sans-serif;
+  display:flex;align-items:center;gap:8px;user-select:none}
+details.st-sec>summary::-webkit-details-marker{display:none}
+details.st-sec>summary::before{content:'\25b8';color:var(--mut);font-size:11px;width:10px}
+details.st-sec[open]>summary::before{content:'\25be'}
+details.st-sec>summary .cnt{font:11px ui-sans-serif;color:var(--mut);font-weight:400;
+  background:color-mix(in srgb,var(--fg) 7%,transparent);border-radius:99px;padding:1px 7px}
+details.st-sec[open]{padding-bottom:10px}
+details.st-sec[data-sec=traps]>summary{color:var(--bad)}
+.st-gist .lab{display:block;font:600 10.5px ui-sans-serif;letter-spacing:.09em;text-transform:uppercase;
+  color:var(--mut);margin-bottom:3px}
+.st-qbar{display:flex;align-items:center;gap:8px;font-size:11.5px;color:var(--mut);margin:0 0 8px}
+.st-qbar button{margin-left:auto;font-size:11px;padding:3px 8px}
+/* the "See it" visuals: figures on a light plate in both themes, code, tables, the explorer */
+.st-vis{margin:0 0 12px}
+.st-vis .vt{font:600 12.5px ui-sans-serif;margin:0 0 5px}
+.st-vis .vc{font-size:12px;color:var(--mut);margin:5px 0 0;line-height:1.5}
+.st-vis img{width:100%;height:auto;display:block;border-radius:6px;border:1px solid var(--line);
+  background:#fcfcfb;cursor:zoom-in}
+.st-vis svg.dg{width:100%;height:auto;display:block;color:var(--fg)}
+.st-vis .vcode pre.src{max-height:340px;overflow:auto;margin:0}
+.st-vis table{width:100%;border-collapse:collapse;font:11.5px/1.4 ui-sans-serif;font-variant-numeric:tabular-nums}
+.st-vis th{text-align:left;border-bottom:1px solid var(--rule);padding:4px 5px;font-weight:600;white-space:nowrap}
+.st-vis td{border-bottom:1px solid var(--line);padding:3px 5px;white-space:nowrap}
+.st-vis .tw{overflow-x:auto}
+#zoombox{position:fixed;inset:0;background:rgba(0,0,0,.72);z-index:90;display:none;
+  align-items:center;justify-content:center;cursor:zoom-out;padding:24px}
+#zoombox img{max-width:96vw;max-height:92vh;background:#fcfcfb;border-radius:8px}
+/* row explorer */
+.ex{--s1:#2a78d6;--s2:#eb6834;--s3:#1baf7a;--band:rgba(237,161,0,.14);border:1px solid var(--line);
+  border-radius:8px;padding:10px;background:var(--pg);font-family:ui-sans-serif,system-ui,sans-serif}
+:root[data-theme=dark] .ex{--s1:#3987e5;--s2:#d95926;--s3:#199e70;--band:rgba(201,133,0,.2)}
+.ex .ctl{display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-bottom:8px;font-size:12px}
+.ex select{font:12px ui-sans-serif;padding:4px 6px;border:1px solid var(--line);border-radius:5px;
+  background:var(--pg);color:var(--fg);max-width:100%}
+.ex .seg button{font-size:11.5px;padding:3px 8px}
+.ex .seg button.on{background:var(--acc);color:#fff;border-color:transparent}
+.ex svg{display:block;width:100%;touch-action:none;cursor:crosshair}
+.ex .lg{display:flex;gap:12px;font-size:11px;color:var(--mut);margin:2px 0 4px;flex-wrap:wrap}
+.ex .lg i{display:inline-block;width:14px;height:3px;border-radius:2px;vertical-align:middle;margin-right:4px}
+.ex .stat{font-size:11.5px;color:var(--mut);margin:4px 0}
+.ex .ro{font-size:11.5px;margin-top:6px}
+.ex .ro .hd{font-weight:600;margin-bottom:4px}
+.ex .ro table{width:100%;border-collapse:collapse;font:inherit;font-size:11.5px}
+.ex .ro td{padding:1px 4px;border-bottom:1px solid var(--line);font-variant-numeric:tabular-nums}
+.ex .ro td.nv{text-align:right}
+.ex .ro tr.sel td{background:color-mix(in srgb,var(--acc) 14%,transparent);font-weight:600}
+.ex .ro tr.grp td{font-weight:600;color:var(--mut);border-bottom:0;padding-top:6px}
+</style></head><body>
+<script>
+(function(){ try{ const k='__t'; localStorage.setItem(k,'1'); localStorage.removeItem(k); }
+  catch(e){ const m={}; const s={getItem:k=>k in m?m[k]:null,setItem:(k,v)=>{m[k]=String(v);},
+    removeItem:k=>{delete m[k];},clear:()=>{for(const k in m) delete m[k];}};
+    try{ Object.defineProperty(window,'localStorage',{value:new Proxy(s,{get:(t,p)=>p in t?t[p]:t.getItem(p),
+      set:(t,p,v)=>{t.setItem(p,v);return true;}})}); }catch(_){} } })();
+</script>
+<script>
+// read-only snapshot: the server's answers are files beside this page
+const READONLY=true, _DATA={}, _get=n=>_DATA[n]||(_DATA[n]=fetch('data/'+n+'.json').then(r=>r.json()));
+const _fetch=window.fetch.bind(window);
+window.fetch=async(u,o)=>{
+  const url=String(u), json=v=>new Response(JSON.stringify(v),{headers:{'Content-Type':'application/json'}});
+  if(o&&o.method==='POST') return json({ok:false,message:'This copy is read-only.'});
+  const m=url.match(/^\/api\/(blocks|study|concepts|code|citations)(\?|$)/);
+  if(url.startsWith('/api/code/file')){ const p=new URLSearchParams(url.split('?')[1]).get('path');
+    const all=await _get('code_files'); return json(all[p]||{}); }
+  if(m){ const d=await _get(m[1]); const rev=new URLSearchParams(url.split('?')[1]||'').get('rev');
+    return json(rev===d.rev?{rev:d.rev}:d); }
+  return _fetch(u,o);
+};
+</script>
+
+<header>
+<button id="toctog" title="Contents">Contents</button>
+<h1>Thesis</h1>
+<input id="find" placeholder="Find text, Enter">
+<div id="status">loading</div>
+<button id="fstog" title="Fill the whole screen (Esc to leave)">Full screen</button>
+<button id="dtog">Panel</button>
+<button id="compile" class="primary">Compile</button>
+<div id="menu"><button id="mtog" title="More">&#8943;</button>
+  <div id="mlist">
+    <div class="mrow"><span>Reading speed</span>
+      <span id="rate"><button id="rslow" title="Slower">&#8722;</button><span id="rlvl" title="Reset">1.0&times;</span><button id="rfast" title="Faster">+</button></span></div>
+    <div class="mrow"><span>Zoom</span>
+      <span id="zoom"><button id="zout" title="Zoom out">&#8722;</button><span id="zlvl" title="Reset">100%</span><button id="zin" title="Zoom in">+</button></span></div>
+    <button id="view">PDF preview</button>
+    <button id="theme">Dark</button>
+    <button id="reload">Reload from disk</button>
+  </div></div>
+</header>
+<iframe id="pdf"></iframe>
+<nav id="toc"></nav><main id="main"></main><div id="card"></div><div id="zoombox"></div>
+<aside id="dock">
+  <div id="dgrip" title="Drag to resize"></div>
+  <div id="dtabs"><button id="study">Study</button><button id="viva">Viva</button><button id="data">Data</button><button id="notes" class="on">Notes</button><button id="cites">Citations</button><button id="code">Code</button><button id="gloss">Concepts</button>
+    <button id="dwide" title="Toggle a wide panel">Wide</button>
+    <button id="dclose" title="Close panel">&times;</button></div>
+  <div id="dbody"><div id="panel" class="on"></div><div id="cpanel"></div>
+    <div id="kpanel"></div><div id="gpanel"></div><div id="spanel"></div><div id="dpanel"></div><div id="vpanel"></div></div>
+</aside>
+<script>
+let STAMPS={};
+let HKEY={}, KEYHEAD={}, KORDER={};
+// a heading or card key reduced to letters, digits and the path separator, so a card still
+// finds its section when a title differs only in punctuation, spacing or case
+const nk=k=>(k||'').toLowerCase().replace(/[^a-z0-9>]+/g,'');
+let STAMP="",HITS=[],HI=-1,BIB={},LBL={},LBLID={},USED=new Set(),NOTES=[];
+// %, & and # are ordinary characters to a writer and control characters to LaTeX
+const escapable=t=>/(?<!\\)[%&#]/.test(t);
+const escapeTex=t=>t.replace(/(?<!\\)([%&#])/g,'\\$1');
+function offerFix(msg,t,retry){
+  msg.innerHTML='';
+  msg.append(document.createTextNode('Contains % & or # unescaped. '));
+  const b=document.createElement('button');
+  b.textContent='Escape and save'; b.className='primary';
+  b.onclick=()=>{t.value=escapeTex(t.value);t.dispatchEvent(new Event('input'));retry();};
+  msg.appendChild(b);
+}
+// ---- reading a paragraph aloud, through the voices the operating system provides
+let VOICE=null, SPEAKING=null;
+function pickVoice(){
+  const vs=speechSynthesis.getVoices().filter(v=>/^en/i.test(v.lang));
+  if(!vs.length) return null;
+  // the system's better voices name themselves; fall back to the known-good ones
+  const score=v=>(/premium|enhanced|natural|neural/i.test(v.name)?100:0)+
+                 (/^(Ava|Samantha|Serena|Daniel|Karen|Moira|Zoe|Allison)\b/i.test(v.name)?40:0)+
+                 (/en[-_]?US/i.test(v.lang)?10:0)+(v.localService?5:0);
+  return vs.sort((a,b)=>score(b)-score(a))[0];
+}
+speechSynthesis.onvoiceschanged=()=>{VOICE=pickVoice();};
+VOICE=pickVoice();
+
+function speechText(el){
+  // read what the page shows, not the markup: drop the note editor, and read a
+  // citation as a pause rather than as a bracketed number
+  const c=el.cloneNode(true);
+  c.querySelectorAll('.ntwrap,.addnote,.speak').forEach(x=>x.remove());
+  // a citation is rendered inside brackets that are plain text, so dropping the name
+  // alone would leave the brackets to be read out; cross-references are left in place
+  // because "Section 3.4.1" reads correctly
+  c.querySelectorAll('.cite').forEach(x=>x.remove());
+  return c.textContent
+    .replace(/\(\s*[;,\s]*\)/g,' ')
+    .replace(/\s+([,.;:])/g,'$1')
+    .replace(/\s+/g,' ')
+    .trim();
+}
+
+function stopSpeaking(){
+  speechSynthesis.cancel();
+  if(SPEAKING){
+    SPEAKING.btn.classList.remove('on'); SPEAKING.btn.textContent='\u25b6';
+    SPEAKING.holder.classList.remove('reading'); SPEAKING=null;
+  }
+}
+
+function speakBtn(el,holder){
+  const b=document.createElement('div'); b.className='speak'; b.textContent='\u25b6';
+  b.title='Read this paragraph aloud'; holder.appendChild(b);
+  b.addEventListener('click',ev=>{
+    ev.stopPropagation();
+    const mine=SPEAKING&&SPEAKING.btn===b;
+    stopSpeaking();
+    if(mine) return;
+    const text=speechText(el);
+    if(!text) return;
+    const u=new SpeechSynthesisUtterance(text);
+    if(VOICE) u.voice=VOICE;
+    u.rate=parseFloat(localStorage.getItem('thesisRate')||'1')||1;
+    u.pitch=1;
+    u.onend=u.onerror=()=>{ if(SPEAKING&&SPEAKING.btn===b) stopSpeaking(); };
+    SPEAKING={btn:b,holder};
+    b.classList.add('on'); b.textContent='\u25a0'; holder.classList.add('reading');
+    speechSynthesis.speak(u);
+  });
+}
+
+function noteBtn(el,i){
+  const w=document.createElement('div'); w.className='holder';
+  el.replaceWith(w); w.appendChild(el);
+  const b=document.createElement('div'); b.className='addnote'; b.textContent='+';
+  b.title='Add a note'; w.appendChild(b);
+  speakBtn(el,w);
+  b.addEventListener('click',ev=>{ev.stopPropagation();
+    if(w.querySelector('textarea.nt')) return;
+    const wrap=document.createElement('div'); wrap.className='ntwrap';
+    wrap.innerHTML=`<textarea class="nt" rows="2" placeholder="What should change here?"></textarea>
+      <div class="ntrow"><button class="ntadd primary">Add note</button>
+      <button class="ntcancel">Cancel</button>
+      <span class="nthint">Enter to add, Shift+Enter for a new line</span></div>`;
+    w.appendChild(wrap);
+    const t=wrap.querySelector('textarea'); t.focus();
+    let done=false;
+    const commit=async()=>{
+      const v=t.value.trim();
+      if(done) return; done=true;
+      if(!v){wrap.remove();return;}
+      wrap.remove();
+      NOTES=await (await fetch('/api/note/add',{method:'POST',
+        headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({index:+i,text:v})})).json();
+      drawNotes(w,i); badge();
+    };
+    wrap.querySelector('.ntadd').onclick=commit;
+    wrap.querySelector('.ntcancel').onclick=()=>{done=true;wrap.remove();};
+    t.addEventListener('keydown',e=>{
+      if(e.key==='Escape'){done=true;wrap.remove();}
+      else if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();commit();}
+    });
+    // clicking away should keep what was typed rather than discard it
+    t.addEventListener('blur',()=>setTimeout(()=>{if(!done&&t.value.trim())commit();},150));
+  });
+  drawNotes(w,i);
+  const ins=document.createElement('div'); ins.className='ins';
+  ins.innerHTML='<span class="bar" title="Add a paragraph here"></span>';
+  w.after(ins);
+  ins.querySelector('.bar').addEventListener('click',()=>{
+    if(ins.nextElementSibling&&ins.nextElementSibling.classList.contains('newp')) return;
+    const box=document.createElement('div'); box.className='ed newp';
+    box.innerHTML=`<textarea placeholder="New paragraph. Plain LaTeX."></textarea>
+      <div class="row"><button class="save primary" disabled>Insert</button>
+      <button class="cancel">Cancel</button><span class="msg"></span></div>`;
+    ins.after(box);
+    const t=box.querySelector('textarea'),btn=box.querySelector('.save'),msg=box.querySelector('.msg');
+    const grow=()=>{t.style.height='auto';t.style.height=(t.scrollHeight+2)+'px';};
+    grow(); t.focus();
+    t.addEventListener('input',()=>{grow();btn.disabled=!t.value.trim();msg.textContent='';});
+    box.querySelector('.cancel').onclick=()=>box.remove();
+    btn.onclick=async()=>{
+      btn.disabled=true;msg.textContent='inserting';msg.className='msg';
+      const j=await (await fetch('/api/insert',{method:'POST',
+        headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({index:+i,body:t.value,stamp:STAMP})})).json();
+      if(j.ok){STAMP=j.stamp;box.remove();load();}
+      else{
+        msg.className='msg bad'; btn.disabled=false;
+        if(/Unescaped/.test(j.message)&&escapable(t.value)) offerFix(msg,t,()=>btn.onclick());
+        else msg.textContent=j.message;
+      }
+    };
+  });
+  return w;
+}
+function drawNotes(w,i){
+  w.querySelectorAll('.note-i').forEach(n=>n.remove());
+  NOTES.filter(n=>n.index===+i).forEach(n=>{
+    const d=document.createElement('div'); d.className='note-i';
+    d.innerHTML=`<button title="Delete">\u00d7</button>${esc(n.text)}`;
+    d.querySelector('button').onclick=async ev=>{ev.stopPropagation();
+      NOTES=await (await fetch('/api/note/del',{method:'POST',
+        headers:{'Content-Type':'application/json'},body:JSON.stringify({id:n.id})})).json();
+      drawNotes(w,i); badge();};
+    w.appendChild(d);
+  });
+}
+function badge(){
+  document.getElementById('notes').textContent=NOTES.length?`Notes (${NOTES.length})`:'Notes';
+}
+function cites(keys){
+  return keys.split(',').map(k=>k.trim()).filter(Boolean).map(k=>{
+    const e=BIB[k]; if(!e) return `<span class="cite bad">${esc(k)}</span>`;
+    USED.add(k);
+    const v=e.verdict?` v${e.verdict}`:'';
+    return `<span class="cite${v==='ok'?'':''}" data-k="${esc(k)}">${esc(e.label)}</span>`;
+  }).join('; ');
+}
+const esc=s=>s.replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
+
+const ACC={
+ '"':{a:'\u00e4',e:'\u00eb',i:'\u00ef',o:'\u00f6',u:'\u00fc',y:'\u00ff',A:'\u00c4',E:'\u00cb',I:'\u00cf',O:'\u00d6',U:'\u00dc'},
+ "'":{a:'\u00e1',e:'\u00e9',i:'\u00ed',o:'\u00f3',u:'\u00fa',y:'\u00fd',c:'\u0107',n:'\u0144',s:'\u015b',z:'\u017a',A:'\u00c1',E:'\u00c9',I:'\u00cd',O:'\u00d3',U:'\u00da',N:'\u0143'},
+ '`':{a:'\u00e0',e:'\u00e8',i:'\u00ec',o:'\u00f2',u:'\u00f9',A:'\u00c0',E:'\u00c8',O:'\u00d2'},
+ '^':{a:'\u00e2',e:'\u00ea',i:'\u00ee',o:'\u00f4',u:'\u00fb',A:'\u00c2',E:'\u00ca',O:'\u00d4'},
+ '~':{a:'\u00e3',n:'\u00f1',o:'\u00f5',A:'\u00c3',N:'\u00d1',O:'\u00d5'},
+ c:{c:'\u00e7',s:'\u015f',C:'\u00c7'},
+ v:{s:'\u0161',c:'\u010d',z:'\u017e',r:'\u0159',S:'\u0160',C:'\u010c',Z:'\u017d'},
+ '=':{a:'\u0101',e:'\u0113',i:'\u012b',o:'\u014d',u:'\u016b'},
+ '.':{z:'\u017c',e:'\u0117'},
+ u:{a:'\u0103',g:'\u011f'},
+ H:{o:'\u0151',u:'\u0171'},
+ k:{a:'\u0105',e:'\u0119'}};
+const LIG={ss:'\u00df',ae:'\u00e6',AE:'\u00c6',oe:'\u0153',OE:'\u0152',aa:'\u00e5',AA:'\u00c5',
+  o:'\u00f8',O:'\u00d8',l:'\u0142',L:'\u0141',i:'\u0131'};
+function accents(t){
+  return t.replace(/\\(["'`^~=.]|[cvuHk])\s*\{(\w)\}/g,(m,a,l)=>(ACC[a]&&ACC[a][l])||l)
+          .replace(/\\(["'`^~=.])\s*(\w)/g,(m,a,l)=>(ACC[a]&&ACC[a][l])||l)
+          .replace(/\\(ss|ae|AE|oe|OE|aa|AA)\b/g,(m,k)=>LIG[k])
+          .replace(/\\([oOlL])\{\}/g,(m,k)=>LIG[k]);
+}
+const SYM={pm:'\u00b1',mp:'\u2213',times:'\u00d7',cdot:'\u00b7',div:'\u00f7',
+  leq:'\u2264',geq:'\u2265',neq:'\u2260',approx:'\u2248',sim:'\u223c',propto:'\u221d',
+  ldots:'\u2026',dots:'\u2026',infty:'\u221e',rightarrow:'\u2192',leftarrow:'\u2190',
+  circ:'\u00b0',degree:'\u00b0',percent:'%',alpha:'\u03b1',beta:'\u03b2',gamma:'\u03b3',
+  delta:'\u03b4',Delta:'\u0394',epsilon:'\u03b5',varepsilon:'\u03b5',eta:'\u03b7',
+  theta:'\u03b8',kappa:'\u03ba',lambda:'\u03bb',mu:'\u03bc',nu:'\u03bd',pi:'\u03c0',
+  rho:'\u03c1',sigma:'\u03c3',Sigma:'\u03a3',tau:'\u03c4',phi:'\u03c6',chi:'\u03c7',
+  psi:'\u03c8',omega:'\u03c9',Omega:'\u03a9',in:'\u2208',pm1:'\u00b1'};
+function math(x){
+  x=x.replace(/\\[!,;:>]/g,'').replace(/\\\s/g,' ')
+     .replace(/\\\|/g,'\u2016').replace(/\\\{/g,'\u007b').replace(/\\\}/g,'\u007d')
+     .replace(/\\(?:left|right|big|Big|bigg|Bigg)\b/g,'')
+     .replace(/\\(?:text|mathrm|mathit|mathbf|mathcal|operatorname)\{([^{}]*)\}/g,
+              '<span class="up">$1</span>')
+     .replace(/\\frac\{([^{}]*)\}\{([^{}]*)\}/g,'$1/$2')
+     .replace(/\\sqrt\{([^{}]*)\}/g,'\u221a($1)')
+     .replace(/\\([a-zA-Z]+)/g,(m,n)=>SYM[n]!==undefined?SYM[n]:'')
+     .replace(/\^\{([^{}]*)\}/g,'<sup>$1</sup>').replace(/\^(\w)/g,'<sup>$1</sup>')
+     .replace(/_\{([^{}]*)\}/g,'<sub>$1</sub>').replace(/_(\w)/g,'<sub>$1</sub>')
+     .replace(/[{}]/g,'')
+     .replace(/(?<![\w)\]])-(?=[\d.])/g,'\u2212');
+  return x;
+}
+function render(s){
+  s=accents(esc(s));
+  // layout and bookkeeping commands carry no text and must go whole, argument included,
+  // or their arguments are left stranded on the page
+  s=s.replace(/\\(?:setcounter|addtocounter|vspace\*?|hspace\*?|addcontentsline|pagestyle|thispagestyle|label|index|nolinebreak|linebreak)\s*(\{[^{}]*\})*/g,'');
+  s=s.replace(/\\begin\{(equation\*?|align\*?|displaymath|gather\*?)\}([\s\S]*?)\\end\{\1\}/g,
+    (m,env,inner)=>`<span class="eq"><span class="m">`+
+      math(inner.replace(/\\label\{[^{}]*\}/g,'').replace(/\s*,\s*$/,'').trim())+`</span></span>`);
+  s=s.replace(/\{([,.])\}/g,'$1').replace(/\\%/g,'%').replace(/\\&amp;/g,'&amp;').replace(/\\_/g,'_').replace(/\\#/g,'#').replace(/\\\$/g,'$');
+  s=s.replace(/\$([^$]*)\$/g,(m,x)=>'<span class="m">'+math(x)+'</span>');
+  s=s.replace(/\\textbf\{([^{}]*)\}/g,'<strong>$1</strong>')
+     .replace(/\\(?:textit|emph)\{([^{}]*)\}/g,'<em>$1</em>')
+     .replace(/\\ac\{([^{}]*)\}/g,'$1')
+     .replace(/\\citep\{([^{}]*)\}/g,(m,k)=>'('+cites(k)+')')
+     .replace(/\\cite[tp]?\{([^{}]*)\}/g,(m,k)=>cites(k))
+     .replace(/\\autoref\{([^{}]*)\}/g,(m,k)=>{
+        const L=LBL[k]; return L?`<span class="xref" data-l="${esc(k)}">${L.kind} ${L.num}</span>`
+                                :'<span class="xref bad">?</span>';})
+     .replace(/\\(?:ref|eqref)\{([^{}]*)\}/g,(m,k)=>{
+        const L=LBL[k]; return L?`<span class="xref" data-l="${esc(k)}">${L.num}</span>`
+                                :'<span class="xref bad">?</span>';})
+     .replace(/\\checkmark/g,'\u2713').replace(/\\textmu/g,'\u00b5')
+     .replace(/~/g,'\u00a0').replace(/\\,/g,'\u2009').replace(/\\\\/g,'<br>')
+     .replace(/``/g,'\u201c').replace(/''/g,'\u201d').replace(/--/g,'\u2013')
+     .replace(/\\(?:noindent|medskip|bigskip|smallskip|par|centering|footnotesize|small|normalsize|clearpage|newpage|cleardoublepage|resetacronyms)\b/g,'')
+     .replace(/\\(?:textsc|texttt|textsf|underline|mbox)\{([^{}]*)\}/g,'$1')
+     .replace(/\\footnote\{([^{}]*)\}/g,'<span class="fn" title="$1">*</span>')
+     .replace(/\\url\{([^{}]*)\}/g,'<a href="$1" target="_blank">$1</a>')
+     .replace(/\\[a-zA-Z]+\{([^{}]*)\}/g,'$1').replace(/\\[a-zA-Z]+\b/g,'');
+  return s;
+}
+
+function tabular(src){
+  const m=src.match(/\\begin\{tabular\}\{([^}]*)\}([\s\S]*?)\\end\{tabular\}/);
+  if(!m) return '';
+  const align=[];
+  m[1].replace(/!\{[^}]*\}/g,'').replace(/p\{[^}]*\}/g,'p').replace(/@\{[^}]*\}/g,'')
+      .split('').forEach(c=>{if('lrcp'.includes(c))align.push({l:'left',r:'right',c:'center',p:'left'}[c]);});
+  let body=m[2].replace(/\\(?:toprule|bottomrule|addlinespace|rowsep|groupsep|hline)\b/g,'');
+  const parts=body.split(/\\midrule/);
+  const head=parts.length>1?parts[0]:'', rest=parts.length>1?parts.slice(1).join(''):parts[0];
+  const rows=t=>t.split(/\\\\/).map(r=>r.trim()).filter(Boolean);
+  const cells=r=>r.split(/(?<!\\)&/).map(c=>c.trim());
+  const cell=(c,i,tag)=>{
+    const mc=c.match(/\\multicolumn\{(\d+)\}\{([^}]*)\}\{([\s\S]*)\}/);
+    if(mc) return `<${tag} colspan="${mc[1]}" style="text-align:center">${render(mc[3])}</${tag}>`;
+    return `<${tag} style="text-align:${align[i]||'left'}">${render(c)}</${tag}>`;
+  };
+  const tr=(t,tag)=>rows(t).map(r=>'<tr>'+cells(r).map((c,i)=>cell(c,i,tag)).join('')+'</tr>').join('');
+  return '<table class="tb">'+(head?'<thead>'+tr(head,'th')+'</thead>':'')+'<tbody>'+tr(rest,'td')+'</tbody></table>';
+}
+
+async function load(){
+  const d=await (await fetch('/api/blocks')).json(); STAMP=d.stamp; STAMPS=d.stamps||{};
+  const m=document.getElementById('main'); m.innerHTML='';
+  const c=d.cover||{};
+  m.insertAdjacentHTML('beforeend',`<div class="page cover">
+    <div class="kind">${esc(c.doctype||'')}</div><div class="ti">${render(c.title||'')}</div>
+    <div class="by">${esc(c.author||'')}<span>Supervisor</span>${esc(c.supervisor||'')}</div></div>`);
+  BIB=d.bib||{}; LBL=Object.assign({},d.apx||{}); USED=new Set(); NOTES=d.notes||[]; badge();
+  // first pass: number every label, so a cross-reference can resolve to a thing that
+  // has not been rendered yet
+  (()=>{let ch=0,se=0,su=0,tb=0,fg=0,pend=null;
+    d.blocks.forEach(b=>{
+      (b.lead||'').split('\n').forEach(L=>{
+        if(/\\chapter\{/.test(L)){ch++;se=su=tb=fg=0;pend={kind:'Chapter',num:`${ch}`};}
+        else if(/\\subsubsection\{/.test(L)){pend=null;}
+        else if(/\\subsection\{/.test(L)){su++;pend={kind:'Section',num:`${ch}.${se}.${su}`};}
+        else if(/\\section\{/.test(L)){se++;su=0;pend={kind:'Section',num:`${ch}.${se}`};}
+        else{const x=L.match(/\\label\{(.*?)\}/); if(x&&pend) LBL[x[1]]=pend;}
+      });
+      if(b.locked){
+        const x=b.body.match(/\\label\{(.*?)\}/);
+        if(/\\includegraphics/.test(b.body)){fg++; if(x) LBL[x[1]]={kind:'Figure',num:`${ch}.${fg}`};}
+        else if(/\\begin\{tabular\}/.test(b.body)){tb++; if(x) LBL[x[1]]={kind:'Table',num:`${ch}.${tb}`};}
+      }
+    });})();
+  const TOC=[]; let hid=0; LBLID={}; let lastId=null;
+  let pg=null, ch=0, se=0, su=0, tb=0, fg=0;
+  // each heading's path of raw titles, which is how a study card names the section it belongs to
+  HKEY={}; KEYHEAD={}; KORDER={}; let RC='', RS='', korder=0;
+  const HK=(v,parts)=>{HKEY[v]=parts; const k=nk(parts.join(' > '));
+    if(!(k in KEYHEAD)){KEYHEAD[k]=v; KORDER[k]=korder++;}};
+  const page=()=>{pg=document.createElement('div');pg.className='page';m.appendChild(pg);return pg;};
+  page();
+  d.blocks.forEach((b,i)=>{
+    (b.lead||'').split('\n').forEach(L=>{
+      let x;
+      const id=()=>{const v='h'+(hid++); lastId=v; return v;};
+      if(x=L.match(/\\chapter\{(.*)\}/)){ch++;se=0;su=0;tb=0;fg=0;page();
+        const v=id(); TOC.push({v,lv:1,num:`${ch}`,t:render(x[1])}); RC=x[1]; RS=''; HK(v,[RC]);
+        pg.insertAdjacentHTML('beforeend',`<h2 class="ch" id="${v}"><small>Chapter ${ch}</small>${render(x[1])}</h2>`);}
+      else if(x=L.match(/\\subsubsection\{(.*)\}/))
+        pg.insertAdjacentHTML('beforeend',`<h4 class="su">${render(x[1])}</h4>`);
+      else if(x=L.match(/\\subsection\{(.*)\}/)){su++;
+        const v=id(); TOC.push({v,lv:3,num:`${ch}.${se}.${su}`,t:render(x[1])}); HK(v,[RC,RS,x[1]]);
+        pg.insertAdjacentHTML('beforeend',`<h4 class="su" id="${v}"><em>${ch}.${se}.${su}</em>${render(x[1])}</h4>`);}
+      else if(x=L.match(/\\section\{(.*)\}/)){se++;su=0;
+        const v=id(); TOC.push({v,lv:2,num:`${ch}.${se}`,t:render(x[1])}); RS=x[1]; HK(v,[RC,RS]);
+        pg.insertAdjacentHTML('beforeend',`<h3 class="se" id="${v}"><em>${ch}.${se}</em>${render(x[1])}</h3>`);}
+      else if(x=L.match(/\\label\{(.*?)\}/)){ if(lastId) LBLID[x[1]]=lastId; }
+    });
+    if(!b.body.trim()) return;
+    if(b.locked){
+      const src=b.body, mark=h=>{
+        const lb=src.match(/\\label\{(.*?)\}/);
+        if(lb){ const v='h'+(hid++); LBLID[lb[1]]=v; h=h.replace(/^<(\w+)/, `<$1 id="${v}"`); }
+        pg.insertAdjacentHTML('beforeend',h);
+        const n=pg.lastElementChild;
+        if(n){n.dataset.i=i;n.dataset.src=src;n.classList.add('struct');
+              n.addEventListener('click',ev=>{ev.stopPropagation();edit(n,true);});
+              noteBtn(n,i);}
+      };
+      const ol=/\\begin\{enumerate\}/.test(src);
+      if(/\\tableofcontents|\\makecoverpage/.test(src)){
+        mark('<div class="float">Cover page and table of contents</div>');return;}
+      if(/\\rerunTODO/.test(src)){
+        const t=src.match(/\\rerunTODO\{([\s\S]*)\}/);
+        mark(`<div class="todo">${render(t?t[1]:'To be filled after the rerun')}</div>`);return;}
+      const box=src.match(/\\insightsbox\{([^{}]*)\}/);
+      const items=[...src.matchAll(/\\item\s+([\s\S]*?)(?=\\item|\\end\{itemize\}|\}\s*$|$)/g)];
+      if(box){mark(
+        `<div class="box"><h5>${render(box[1])}</h5><ul class="it">${items.map(x=>`<li>${render(x[1].trim())}</li>`).join('')}</ul></div>`);return;}
+      if(items.length&&!/\\begin\{(table|figure)/.test(src)){
+        const tag=ol?'ol':'ul';
+        mark(`<${tag} class="it">${items.map(x=>`<li>${render(x[1].trim())}</li>`).join('')}</${tag}>`);return;}
+      const eq=src.match(/\\begin\{(equation\*?|align\*?|displaymath|gather\*?)\}([\s\S]*?)\\end\{\1\}/);
+      if(eq){mark(`<div class="eq"><span class="m">${math(eq[2].replace(/\\label\{[^{}]*\}/g,'').trim())}</span></div>`);return;}
+      const cap=src.match(/\\caption\{([\s\S]*?)\}\s*\n/)||src.match(/\\caption\{([\s\S]*)\}/);
+      const img=src.match(/\\includegraphics\[[^\]]*\]\{figures\/([^}]+?)(?:\.pdf)?\}/);
+      if(img){fg++;
+        const wm=src.match(/\\includegraphics\[[^\]]*width\s*=\s*([0-9.]*)\s*\\(?:text|line)width/);
+        const pct=Math.round((wm&&wm[1]?parseFloat(wm[1]):1)*100);
+        mark(`<figure><img src="fig/${img[1]}.png" alt="" style="width:${pct}%">`+
+             `<figcaption><b>Figure ${ch}.${fg}:</b> ${render(cap?cap[1]:'')}</figcaption></figure>`);return;}
+      if(/\\begin\{tabular\}/.test(src)){tb++;mark(
+        `<div class="tblock"><div class="cap"><b>Table ${ch}.${tb}:</b> ${render(cap?cap[1]:'')}</div>`+
+        `<div class="tscroll">${tabular(src)}</div></div>`);return;}
+      return;
+    }
+    if(!render(b.body).replace(/<[^>]*>/g,'').trim()) return;
+    const p=document.createElement('p'); p.className='par'; p.innerHTML=render(b.body);
+    p.dataset.i=i; p.dataset.src=b.body; pg.appendChild(p);
+    p.addEventListener('click',()=>edit(p));
+    noteBtn(p,i);
+  });
+  const cited=[...USED].sort((a,b)=>(BIB[a].label||'').localeCompare(BIB[b].label||''));
+  if(cited.length){
+    page();
+    pg.insertAdjacentHTML('beforeend',`<h2 class="ch"><small>References</small>${cited.length} works cited</h2>`
+      +'<div class="refs">'+cited.map(k=>`<p id="bib-${esc(k)}">${esc(BIB[k].full)}</p>`).join('')+'</div>');
+  }
+  // the appendices live in other files; each block carries its file and index so a save goes to the right one
+  let apxLetter='', apxTb=0, apxFg=0;
+  const apxMark=(b,src)=>{const n=pg.lastElementChild; if(!n) return;
+    n.dataset.i=b.index; n.dataset.file=b.file; n.dataset.src=src; n.classList.add('struct');
+    n.addEventListener('click',ev=>{ev.stopPropagation();edit(n,true);});};
+  (d.appendix||[]).forEach(b=>{
+    (b.lead||'').split('\n').forEach(L=>{
+      let x;
+      if(x=L.match(/\\(?:chapter|section)\{(.*)\}/)){
+        if(b.letter!==apxLetter){apxLetter=b.letter; apxTb=0; apxFg=0; page();
+          const v='h'+(hid++); lastId=v; TOC.push({v,lv:1,num:b.letter,t:render(x[1])});
+          RC=x[1]; HK(v,[RC]);
+          pg.insertAdjacentHTML('beforeend',
+            `<h2 class="ch" id="${v}"><small>Appendix ${b.letter}</small>${render(x[1])}</h2>`);}
+        else{const v='h'+(hid++); lastId=v; TOC.push({v,lv:2,num:b.letter,t:render(x[1])});
+          HK(v,[RC,x[1]]);
+          pg.insertAdjacentHTML('beforeend',`<h3 class="se" id="${v}">${render(x[1])}</h3>`);}}
+      else if(x=L.match(/\\subsection\{(.*)\}/))
+        pg.insertAdjacentHTML('beforeend',`<h4 class="su">${render(x[1])}</h4>`);
+      else if(x=L.match(/\\label\{(.*?)\}/)){ if(lastId) LBLID[x[1]]=lastId; }
+    });
+    if(!b.body.trim()) return;
+    const src=b.body;
+    const lb=src.match(/\\label\{(.*?)\}/);
+    const anchor=lb?` id="h${hid}"`:'';
+    if(lb){ LBLID[lb[1]]='h'+(hid++); }
+    const cap=src.match(/\\caption\{([\s\S]*?)\}\s*\n/)||src.match(/\\caption\{([\s\S]*)\}/);
+    const img=src.match(/\\includegraphics\[[^\]]*\]\{figures\/([^}]+?)(?:\.pdf)?\}/);
+    if(img){apxFg++;
+      pg.insertAdjacentHTML('beforeend',
+        `<figure${anchor}><img src="fig/${img[1]}.png" alt="" style="width:100%">`+
+        `<figcaption><b>Figure ${apxLetter}.${apxFg}:</b> ${render(cap?cap[1]:'')}</figcaption></figure>`);apxMark(b,src);return;}
+    if(/\\begin\{tabular\}/.test(src)){apxTb++;
+      pg.insertAdjacentHTML('beforeend',
+        `<div class="tblock"${anchor}><div class="cap"><b>Table ${apxLetter}.${apxTb}:</b> ${render(cap?cap[1]:'')}</div>`+
+        `<div class="tscroll">${tabular(src)}</div></div>`);apxMark(b,src);return;}
+    if(b.locked) return;
+    const html=render(src);
+    if(!html.replace(/<[^>]*>/g,'').trim()) return;
+    pg.insertAdjacentHTML('beforeend',`<p class="par"${anchor}>${html}</p>`);
+    const n=pg.lastElementChild; n.dataset.i=b.index; n.dataset.file=b.file; n.dataset.src=src;
+    n.addEventListener('click',()=>edit(n));
+  });
+
+  // a cross-reference now goes where it points
+  m.querySelectorAll('.xref[data-l]').forEach(x=>x.addEventListener('click',ev=>{
+    ev.stopPropagation();
+    const el=document.getElementById(LBLID[x.dataset.l]);
+    if(!el){x.title='That target is not in this view'; return;}
+    el.scrollIntoView({block:'start',behavior:'smooth'});
+    el.classList.add('flashref'); setTimeout(()=>el.classList.remove('flashref'),1500);
+  }));
+
+  const nav=document.getElementById('toc');
+  nav.innerHTML=TOC.map(e=>
+    `<a class="l${e.lv}" data-v="${e.v}"><i>${e.lv===1?'':e.num}</i>${e.t}</a>`).join('');
+  nav.querySelectorAll('a').forEach(a=>a.onclick=()=>{
+    const el=document.getElementById(a.dataset.v);
+    if(el) el.scrollIntoView({block:'start',behavior:'smooth'});
+  });
+  spy();
+  openFromHash();
+  document.getElementById('status').textContent=
+    (d.blocks.filter(b=>!b.locked).length+(d.appendix||[]).filter(b=>!b.locked).length)+' paragraphs \u00b7 read-only copy \u00b7 '+cited.length+' references';
+}
+
+function edit(p,structural){
+  const i=p.dataset.i, original=p.dataset.src, file=p.dataset.file||null;
+  const stampOf=()=>file?STAMPS[file]:STAMP;
+  const took=j=>{ if(file) STAMPS[file]=j.stamp; else STAMP=j.stamp; if(j.stamps) STAMPS=j.stamps; };
+  const box=document.createElement('div'); box.className='ed';
+  box.innerHTML=`<textarea></textarea><div class="row">
+    <button class="save primary" disabled>Save</button><button class="cancel">Cancel</button>
+    <button class="del">Delete</button><span class="msg"></span></div>`;
+  p.replaceWith(box);
+  const t=box.querySelector('textarea'),btn=box.querySelector('.save'),msg=box.querySelector('.msg');
+  const grow=()=>{t.style.height='auto';t.style.height=(t.scrollHeight+2)+'px';};
+  t.value=original; grow(); t.focus();
+  t.addEventListener('input',()=>{grow();btn.disabled=t.value===original;msg.textContent='';});
+  box.querySelector('.cancel').onclick=()=>box.replaceWith(p);
+  box.querySelector('.del').onclick=async()=>{
+    const what=structural?'this table or figure':'this paragraph';
+    if(!confirm(`Delete ${what}? A backup of the file is kept.`)) return;
+    msg.textContent='deleting';msg.className='msg';
+    const j=await (await fetch('/api/delete',{method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({index:+i,file,stamp:stampOf()})})).json();
+    if(j.ok){took(j);box.remove();load();}
+    else{msg.textContent=j.message;msg.className='msg bad';}
+  };
+  btn.onclick=async()=>{
+    btn.disabled=true;msg.textContent='saving';msg.className='msg';
+    const j=await (await fetch('/api/save',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({index:+i,file,body:t.value,stamp:stampOf()})})).json();
+    if(j.ok){took(j);
+      if(structural){box.remove();load();}
+      else{p.dataset.src=t.value;p.innerHTML=render(t.value);box.replaceWith(p);}}
+    else{
+      msg.className='msg bad'; btn.disabled=false;
+      if(/Unescaped/.test(j.message)&&escapable(t.value)) offerFix(msg,t,()=>btn.onclick());
+      else msg.textContent=j.message;
+    }
+  };
+}
+
+let spyTimer;
+function spy(){
+  const heads=[...document.querySelectorAll('h2.ch,h3.se,h4.su')].filter(h=>h.id);
+  const links=document.querySelectorAll('#toc a');
+  const mark=()=>{
+    let cur=null;
+    for(const h of heads){ if(h.getBoundingClientRect().top<120) cur=h.id; else break; }
+    links.forEach(a=>a.classList.toggle('on',a.dataset.v===cur));
+    if(cur!==spy._last){spy._last=cur; studyFollow(cur);}
+    const on=document.querySelector('#toc a.on');
+    if(on){const n=document.getElementById('toc');
+      const r=on.getBoundingClientRect(), nr=n.getBoundingClientRect();
+      if(r.top<nr.top+10||r.bottom>nr.bottom-10) on.scrollIntoView({block:'center'});}
+  };
+  removeEventListener('scroll',spyTimer);
+  spyTimer=()=>{clearTimeout(spy._t);spy._t=setTimeout(mark,60);};
+  addEventListener('scroll',spyTimer,{passive:true});
+  mark();
+}
+function setToc(open){
+  document.body.classList.toggle('toc',open);
+  localStorage.thesisToc=open?'1':'0';
+  document.getElementById('toctog').textContent=open?'Hide contents':'Contents';
+}
+document.getElementById('toctog').onclick=()=>setToc(!document.body.classList.contains('toc'));
+setToc(localStorage.thesisToc!=='0');
+
+const STEPS=[.7,.8,.9,1,1.1,1.25,1.4,1.6,1.8,2];
+let zi=Math.max(0,STEPS.indexOf(parseFloat(localStorage.thesisZoom)||1));
+function setZoom(i){
+  zi=Math.min(STEPS.length-1,Math.max(0,i));
+  document.documentElement.style.setProperty('--z',STEPS[zi]);
+  localStorage.thesisZoom=STEPS[zi];
+  document.getElementById('zlvl').textContent=Math.round(STEPS[zi]*100)+'%';
+}
+document.getElementById('zin').onclick=()=>setZoom(zi+1);
+document.getElementById('zout').onclick=()=>setZoom(zi-1);
+document.getElementById('zlvl').onclick=()=>setZoom(STEPS.indexOf(1));
+addEventListener('keydown',e=>{
+  if(!(e.metaKey||e.ctrlKey)) return;
+  if(e.key==='='||e.key==='+'){e.preventDefault();setZoom(zi+1);}
+  else if(e.key==='-'){e.preventDefault();setZoom(zi-1);}
+  else if(e.key==='0'){e.preventDefault();setZoom(STEPS.indexOf(1));}
+});
+setZoom(zi);
+
+const root=document.documentElement;
+function setTheme(t){root.dataset.theme=t;localStorage.thesisTheme=t;
+  document.getElementById('theme').textContent=t==='dark'?'Light':'Dark';}
+setTheme(localStorage.thesisTheme||(matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light'));
+document.getElementById('theme').onclick=()=>setTheme(root.dataset.theme==='dark'?'light':'dark');
+
+document.getElementById('view').onclick=e=>{
+  const f=document.getElementById('pdf'),m=document.getElementById('main');
+  const show=f.style.display!=='block';
+  if(show&&!f.src) f.src='/pdf#view=FitH';
+  f.style.display=show?'block':'none'; m.style.display=show?'none':'block';
+  e.target.textContent=show?'Edit':'PDF';
+};
+document.getElementById('find').addEventListener('keydown',e=>{
+  if(e.key!=='Enter')return;
+  const q=e.target.value.trim().toLowerCase();
+  document.querySelectorAll('mark').forEach(n=>n.replaceWith(...n.childNodes));
+  if(!q){HITS=[];HI=-1;return;}
+  HITS=[...document.querySelectorAll('p.par')].filter(p=>p.textContent.toLowerCase().includes(q));
+  if(!HITS.length){document.getElementById('status').textContent='not found';return;}
+  HI=(HI+1)%HITS.length; const p=HITS[HI];
+  p.innerHTML=p.innerHTML.replace(new RegExp('('+q.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')+')','ig'),'<mark>$1</mark>');
+  p.scrollIntoView({block:'center',behavior:'smooth'});
+  document.getElementById('status').textContent=`match ${HI+1} of ${HITS.length} \u00b7 Enter for next`;
+});
+const PANEL=document.getElementById('panel');
+function drawPanel(){
+  PANEL.innerHTML=`<h4>Review notes (${NOTES.length})</h4>`+
+    (NOTES.length?NOTES.map(n=>`<div class="n"><div class="w">${esc(n.section||'Front matter')} \u00b7 line ${n.line}</div>${esc(n.text)}</div>`).join('')
+                 :'<div class="n">Hover a paragraph and press the + in the margin.</div>')+
+    `<div class="acts"><button id="ncopy" class="primary">Copy all</button>
+     <button id="nclear">Clear all</button></div>`;
+  PANEL.querySelector('#ncopy').onclick=async e=>{
+    const j=await (await fetch('/api/note/markdown',{method:'POST',
+      headers:{'Content-Type':'application/json'},body:'{}'})).json();
+    await navigator.clipboard.writeText(j.text);
+    e.target.textContent='Copied'; setTimeout(()=>e.target.textContent='Copy all',1400);
+  };
+  PANEL.querySelector('#nclear').onclick=async()=>{
+    if(!NOTES.length||!confirm(`Delete all ${NOTES.length} notes?`)) return;
+    NOTES=await (await fetch('/api/note/clear',{method:'POST',
+      headers:{'Content-Type':'application/json'},body:'{}'})).json();
+    badge(); drawPanel(); load();
+  };
+}
+const CP=document.getElementById('cpanel');
+const VERDICT={
+  OK:        {tag:'sound',      plain:'The paper supports every sentence that cites it.'},
+  WEAK:      {tag:'overreach',  plain:'The paper is about the right thing, but the thesis asks it to say more than it does.'},
+  WRONG:     {tag:'not in it',  plain:'The paper does not contain the claim attributed to it.'},
+  CONTRADICTS:{tag:'opposite',  plain:'The paper says the opposite of what the thesis attributes to it.'},
+  UNVERIFIABLE:{tag:'no copy',  plain:'The paper could not be obtained, so the claim is unchecked either way.'},
+  none:      {tag:'unchecked',  plain:'Nobody has read this paper against the sentences that cite it.'}};
+function HOWREAD(r){
+  if(!r.says) return ' &middot; not read yet';
+  if(r.basis==='abstract only') return ' &middot; abstract only, so this is provisional';
+  const where=r.checked==='web'?'online':'on disk';
+  return r.basis==='full text' ? ` &middot; read in full ${where}` : ` &middot; checked ${where}`;
+}
+let KTIMER=null;
+let CFILT='all', CREV='', CTIMER=null, COPEN=new Set(), CDRAFT={}, CFOCUS=null;
+function citeRows(d){
+  const uses=d.uses||{}, bib=d.bib||{};
+  return Object.keys(bib).map(k=>({k, ...bib[k], uses:uses[k]||[]}))
+    .filter(r=>{
+      if(CFILT==='unaudited') return !r.verdict;
+      if(CFILT==='unsupported') return r.verdict&&(!r.says||r.basis==='abstract only');
+      if(CFILT==='weak') return r.verdict&&r.verdict!=='OK';
+      if(CFILT==='nopdf') return !r.pdf;
+      if(CFILT==='uncited') return r.uses.length===0;
+      return true;})
+    .sort((a,b)=>a.label.localeCompare(b.label));
+}
+let CDATA=null;
+async function fetchCites(force){
+  const r=await (await fetch('/api/citations?rev='+encodeURIComponent(CREV))).json();
+  if(!r.bib && !force) return false;          // nothing on disk has moved
+  if(r.bib){ CDATA=r; CREV=r.rev; return true; }
+  return !!CDATA;
+}
+async function drawCites(force){
+  if(!(await fetchCites(force||!CDATA)) && !force) return;
+  const d=CDATA, box=document.getElementById('dbody'), scroll=box?box.scrollTop:0;
+  CP.querySelectorAll('.det textarea').forEach(t=>{
+    if(t.value.trim()) CDRAFT[t.dataset.k]=t.value;});
+  if(CFOCUS) COPEN.add(CFOCUS);
+  const rows=citeRows(d), all=Object.keys(d.bib||{});
+  const tally=v=>all.filter(k=>(d.bib[k].verdict||null)===v).length;
+  CP.innerHTML=`<h4>Citations <span style="color:var(--mut);font-weight:400">
+      ${rows.length} of ${all.length} shown &middot; ${tally('OK')} sound &middot;
+      ${all.length-tally('OK')-tally(null)} with a problem &middot; ${tally(null)} not yet checked</span></h4>
+    <div id="cfilt">
+      ${[['all','All'],['unaudited','Never audited'],['weak','Problems found'],
+         ['unsupported','Verdict unsupported'],['nopdf','No local copy'],['uncited','Cited nowhere']]
+        .map(([v,l])=>`<button data-f="${v}" class="${CFILT===v?'on':''}">${l}</button>`).join('')}
+      <button id="ccopy">Copy this list</button>
+      <button id="cref">Refresh</button>
+    </div>
+    <table class="cit"><thead><tr><th>Reference</th><th>Audit</th><th>Copy</th><th>Uses</th><th>Sections</th></tr></thead>
+    <tbody>${rows.map(r=>{
+      const cls=r.verdict==='OK'?'ok':(['WEAK','UNVERIFIABLE'].includes(r.verdict)?'warn':(r.verdict?'bad':''));
+      const said=VERDICT[r.verdict]||VERDICT.none;
+      const cites=r.uses.length===0?'cited nowhere'
+                 :(r.uses.length===1?'cited once':`cited ${r.uses.length} times`);
+      // the note's first sentence carries the finding; the rest is the reasoning
+      const dot=(r.note||'').indexOf('. ');
+      const lead=dot>0?r.note.slice(0,dot+1):(r.note||'');
+      const rest=dot>0?r.note.slice(dot+2):'';
+      return `<tr class="r" data-k="${esc(r.k)}">
+        <td><span class="lbl">${esc(r.label)}</span> <span class="v ${cls}">${esc(said.tag)}</span>
+          <div class="sub">${cites}${r.pdf?' &middot; copy on disk':''}${HOWREAD(r)}</div></td></tr>
+        <tr class="det"${COPEN.has(r.k)?'':' hidden'}><td>
+          <p class="entry">${esc(r.full)}</p>
+          <p class="mean ${cls}">${esc(said.plain)}</p>
+          ${r.origin==='repaired'?'<p class="fixed">This was flagged and the sentence has since been rewritten.</p>':''}
+
+          <h6>In the paper's own words</h6>
+          ${r.says?`<blockquote>${esc(r.says)}</blockquote>`
+                  :'<p class="none">Nobody has quoted this paper yet, so there is nothing behind the verdict.</p>'}
+
+          ${lead?`<h6>Why</h6><p class="why"><b>${esc(lead)}</b>${rest?' '+esc(rest):''}</p>`:''}
+
+          <h6>Where the thesis uses it</h6>
+          ${r.uses.length?r.uses.map(u=>`<div class="u"><b>${esc(u.section)}</b><br>${esc(u.sentence)}</div>`).join('')
+                         :'<p class="none">Nowhere. The entry is in the bibliography but no sentence cites it.</p>'}
+
+          <div class="row"><textarea class="nt" rows="2" data-k="${esc(r.k)}" placeholder="Note to yourself about this reference">${esc(CDRAFT[r.k]||'')}</textarea></div>
+          <div class="row"><button class="cadd primary" data-k="${esc(r.k)}">Add note</button>
+            ${r.viewable?`<a class="open" href="/paper/${esc(r.k)}" target="_blank">Open the paper</a>`:''}</div>
+        </td></tr>`;}).join('')}</tbody></table>`;
+  CP.querySelectorAll('#cfilt button[data-f]').forEach(b=>b.onclick=()=>{CFILT=b.dataset.f;drawCites(true);});
+  const rb=CP.querySelector('#cref'); if(rb) rb.onclick=()=>drawCites(true);
+  CP.querySelectorAll('tr.r').forEach(tr=>tr.onclick=()=>{
+    const det=tr.nextElementSibling, k=tr.dataset.k;
+    det.hidden=!det.hidden;
+    det.hidden?COPEN.delete(k):COPEN.add(k);});
+  CP.querySelectorAll('.cadd').forEach(b=>b.onclick=async ev=>{
+    ev.stopPropagation();
+    const ta=b.closest('td').querySelector('textarea'), v=ta.value.trim();
+    if(!v) return;
+    NOTES=await (await fetch('/api/note/cite',{method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({key:b.dataset.k,text:v})})).json();
+    ta.value=''; delete CDRAFT[b.dataset.k];
+    b.textContent='Added'; setTimeout(()=>b.textContent='Add note',1200); badge();
+  });
+  const cb=CP.querySelector('#ccopy'); if(cb) cb.onclick=async e=>{
+    const lines=rows.map(r=>`- ${r.label} (${r.k}) | audit: ${r.verdict||'none'}`+
+      ` (${r.says?(r.basis||'quoted'):'no quotation, unsupported'}) | `+
+      `local copy: ${r.pdf?'yes':'no'} | used ${r.uses.length}x`+
+      (r.uses.length?` in ${[...new Set(r.uses.map(u=>u.section))].join('; ')}`:''));
+    await navigator.clipboard.writeText(`# Citations (${CFILT})\n\n`+lines.join('\n'));
+    e.target.textContent='Copied'; setTimeout(()=>e.target.textContent='Copy this list',1400);
+  };
+  if(CFOCUS){
+    const tr=CP.querySelector(`tr.r[data-k="${CSS.escape(CFOCUS)}"]`);
+    if(tr){tr.scrollIntoView({block:'start'}); tr.classList.add('flash');
+           setTimeout(()=>tr.classList.remove('flash'),1500);}
+    CFOCUS=null;
+  }else if(box) box.scrollTop=scroll;
+}
+
+// ---- the Concepts tab: the methods and statistics this thesis uses, explained once
+const GP=document.getElementById('gpanel');
+let GREV='', GDATA=null, GOPEN=new Set(), GQ='';
+async function drawGloss(force){
+  const r=await (await fetch('/api/concepts?rev='+encodeURIComponent(GREV))).json();
+  if(r.concepts){GDATA=r; GREV=r.rev;} else if(!force||!GDATA) return;
+  const q=GQ.toLowerCase();
+  const hit=c=>!q||[c.term,c.one_line,c.explain,c.here,(c.aka||[]).join(' ')]
+                    .join(' ').toLowerCase().includes(q);
+  const list=GDATA.concepts.filter(hit);
+  const areas=[...new Set(list.map(c=>c.area||'Other'))];
+  GP.innerHTML=`<input id="gfind" placeholder="Search the concepts" value="${esc(GQ)}">`+
+    (list.length?'':'<p class="none">Nothing matches that yet.</p>')+
+    areas.map(a=>`<div class="garea">${esc(a)}</div>`+
+      list.filter(c=>(c.area||'Other')===a).map(c=>`
+        <div class="gc" data-id="${esc(c.id)}">
+          <div class="h"><b>${esc(c.term)}</b>
+            ${(c.aka||[]).length?`<span class="aka"> ${esc((c.aka||[]).join(', '))}</span>`:''}
+            <p class="one">${render(c.one_line||'')}</p></div>
+          <div class="gbody"${GOPEN.has(c.id)?'':' hidden'}>
+            ${(c.explain||'').split(/\n\s*\n/).filter(Boolean)
+                .map(t=>`<p>${render(t)}</p>`).join('')}
+            ${c.svg?`<figure class="gd">${c.svg}</figure>`:''}
+            ${c.formula?`<div class="gform"><span class="m">${math(c.formula)}</span></div>`:''}
+            ${c.here?`<h6>In this thesis</h6><div class="here">${render(c.here)}</div>`:''}
+            ${c.example?`<h6>Worked through</h6><p>${render(c.example)}</p>`:''}
+            ${(c.pitfalls||[]).length?'<h6>Easy to get wrong</h6><ul>'+
+              c.pitfalls.map(t=>`<li>${render(t)}</li>`).join('')+'</ul>':''}
+            ${(c.sources||[]).length?'<h6>Where to read more</h6><ul>'+
+              c.sources.map(s=>`<li><a href="${esc(s.url)}" target="_blank">${esc(s.title)}</a></li>`).join('')+'</ul>':''}
+          </div></div>`).join('')).join('');
+  const f=GP.querySelector('#gfind');
+  f.oninput=()=>{GQ=f.value; drawGloss(true); const g=GP.querySelector('#gfind');
+                 if(g){g.focus(); g.setSelectionRange(g.value.length,g.value.length);}};
+  GP.querySelectorAll('.gc>.h').forEach(h=>h.onclick=()=>{
+    const gc=h.parentElement, body=gc.querySelector('.gbody'), id=gc.dataset.id;
+    body.hidden=!body.hidden;
+    body.hidden?GOPEN.delete(id):GOPEN.add(id);});
+}
+
+// ---- the Code tab: what produced each results section, read from disk every time
+const KP=document.getElementById('kpanel');
+let KREV='', KDATA=null, KOPEN=new Set(), KSHOW={};
+
+const KW=('def class return if elif else for while in not and or import from as with try '+
+ 'except finally raise lambda None True False yield global nonlocal assert pass break '+
+ 'continue is async await del').split(' ');
+// one pass over the source, so a keyword inside a string or a comment is left alone
+const TOK=new RegExp([
+  '(\"\"\"[\\s\\S]*?\"\"\"', '\'\'\'[\\s\\S]*?\'\'\'', '"[^"\\n]*"', "'[^'\\n]*')",
+  '(#[^\\n]*)', '(@\\w+)', '\\b(\\d+\\.?\\d*)\\b', '\\b([A-Za-z_]\\w*)\\b'
+].join('|'),'g');
+function hl(text,suffix){
+  const e=esc(text);
+  if(suffix!=='py'&&suffix!=='sh') return e;
+  return e.replace(TOK,(m,str,com,dec,num,word)=>{
+    if(str) return '<span class="s-str">'+str+'</span>';
+    if(com) return '<span class="s-com">'+com+'</span>';
+    if(dec) return '<span class="s-dec">'+dec+'</span>';
+    if(num) return '<span class="s-num">'+num+'</span>';
+    if(word&&KW.includes(word)) return '<span class="s-kw">'+word+'</span>';
+    return m;});
+}
+function numbered(text,suffix){
+  const w=String(text.split('\n').length).length;
+  return hl(text,suffix).split('\n')
+    .map((l,i)=>'<span class="ln">'+String(i+1).padStart(w,' ')+'</span>  '+l).join('\n');
+}
+const ago=t=>{
+  if(!t) return '';
+  const m=Math.round((Date.now()/1000-t)/60);
+  if(m<60) return m+' min ago';
+  const h=Math.round(m/60);
+  return h<48 ? h+' h ago' : Math.round(h/24)+' days ago';
+};
+async function openSource(path,box){
+  const r=await (await fetch('/api/code/file?path='+encodeURIComponent(path))).json();
+  if(!r.path){box.innerHTML='<p class="none">Could not read that file.</p>';return;}
+  box.innerHTML='<pre class="src">'+numbered(r.text,path.split('.').pop())+'</pre>'+
+    (r.truncated?'<p class="none">Shown to the first 400,000 characters.</p>':'');
+}
+async function drawCode(force){
+  const r=await (await fetch('/api/code?rev='+encodeURIComponent(KREV))).json();
+  if(r.sections){KDATA=r; KREV=r.rev;} else if(!force||!KDATA) return;
+  KP.innerHTML=KDATA.sections.map(sec=>`
+    <div class="ksec" data-l="${esc(sec.label)}">
+      <div class="h"><b>${esc(sec.title)}</b>
+        <span class="${sec.stale?'stale':'fresh'}">${sec.stale
+          ? 'code changed since this was run'
+          : 'results up to date'}</span></div>
+      <div class="kbody"${KOPEN.has(sec.label)?'':' hidden'}>
+        <pre class="kcmd">${esc(sec.command)}</pre>
+        ${sec.files.map(f=>`<div class="kf${f.exists?'':' miss'}">
+          <span class="nm" data-p="${esc(f.path)}">${esc(f.path)}</span>
+          <span class="meta">${f.exists?`${f.lines||'?'} lines, changed ${ago(f.mtime)}`:'missing'}</span>
+          ${f.doc?`<div class="doc">${esc(f.doc)}</div>`:''}
+          <div class="srcbox">${KSHOW[f.path]||''}</div></div>`).join('')}
+        <h6>Writes</h6>
+        ${sec.results.map(f=>`<div class="kf${f.exists?'':' miss'}">
+          <span class="nm" data-p="${esc(f.path)}">${esc(f.path)}</span>
+          <span class="meta">${f.exists
+            ? (f.kind==='dir'?`${f.count} files, newest ${ago(f.mtime)}`:`written ${ago(f.mtime)}`)
+            : 'not produced yet'}</span>
+          <div class="srcbox">${KSHOW[f.path]||''}</div></div>`).join('')}
+      </div></div>`).join('');
+  KP.querySelectorAll('.ksec>.h').forEach(h=>h.onclick=()=>{
+    const sec=h.parentElement, body=sec.querySelector('.kbody'), l=sec.dataset.l;
+    body.hidden=!body.hidden;
+    body.hidden?KOPEN.delete(l):KOPEN.add(l);});
+  KP.querySelectorAll('.kf .nm').forEach(nm=>nm.onclick=async ev=>{
+    ev.stopPropagation();
+    if(nm.parentElement.classList.contains('miss')) return;
+    const box=nm.parentElement.querySelector('.srcbox'), path=nm.dataset.p;
+    if(box.innerHTML){box.innerHTML=''; delete KSHOW[path]; return;}
+    box.innerHTML='<p class="none">reading</p>';
+    await openSource(path,box);
+    KSHOW[path]=box.innerHTML;});
+}
+
+// ---- the Study and Data tabs: for the section being read, what it says, what was actually
+// done, the numbers worth knowing and the questions a committee could ask, with answers.
+// Cards live in study/*.json and are re-read whenever one of those files changes.
+const SP=document.getElementById('spanel'), DP=document.getElementById('dpanel');
+let SREV='', SDATA=null, SBY={}, SCUR=null, SPOS=null, SQ='', SOVER=false, STRAPS=false, DQ='', STIMER=null;
+let SFOLLOW=(()=>{try{return localStorage.getItem('studyFollow')!=='0';}catch(e){return true;}})();
+let SQUIZ=(()=>{try{return localStorage.getItem('studyQuiz')!=='0';}catch(e){return true;}})();
+const SOPEN=new Set(), DOPEN=new Set();
+const KNOWN=(()=>{try{return JSON.parse(localStorage.getItem('studyKnown')||'{}');}catch(e){return {};}})();
+const saveKnown=()=>{try{localStorage.setItem('studyKnown',JSON.stringify(KNOWN));}catch(e){}};
+const qid=(c,q)=>nk(c.key)+'#'+nk(q.q).slice(0,90);
+const lastSeg=k=>(k||'').split(' > ').pop().replace(/--/g,'\u2013');
+const isData=c=>/^DATA\s*>/.test(c.key);
+function md(t){
+  let s=esc(String(t==null?'':t));
+  s=s.replace(/`([^`]+)`/g,(m,x)=>'<code>'+x+'</code>');
+  s=s.replace(/\$([^$\n]+)\$/g,(m,x)=>'<span class="m">'+math(x)+'</span>');
+  return s.replace(/\*\*([^*]+)\*\*/g,'<strong>$1</strong>');
+}
+const hiLite=(html,q)=>{ if(!q) return html;
+  const re=new RegExp('('+q.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')+')','gi');
+  return html.split(/(<[^>]*>)/).map(p=>p.startsWith('<')?p:p.replace(re,'<mark>$1</mark>')).join(''); };
+
+async function fetchStudy(){
+  let r;
+  try{ r=await (await fetch('/api/study?rev='+encodeURIComponent(SREV))).json(); }catch(e){ return false; }
+  if(!r.cards) return false;
+  SDATA=r; SREV=r.rev; SBY={};
+  r.cards.forEach(c=>{ SBY[nk(c.key)]=c; });
+  if(SPOS) SCUR=cardKeyFor(SPOS)||SCUR;
+  return true;
+}
+// the most specific card for a heading: the subsection's own, else its section's, else the chapter's
+function cardKeyFor(hid){
+  const parts=(HKEY[hid]||[]).filter(Boolean).slice();
+  while(parts.length){ const k=nk(parts.join(' > ')); if(SBY[k]) return k; parts.pop(); }
+  return null;
+}
+function studyFollow(hid){
+  SPOS=hid;
+  if(!SFOLLOW||!SDATA) return;
+  const k=cardKeyFor(hid);
+  if(!k||k===SCUR) return;
+  SCUR=k;
+  if(TAB==='study'&&document.body.classList.contains('dock')&&!SQ.trim()&&!SOVER&&!STRAPS){
+    drawStudy(); document.getElementById('dbody').scrollTop=0;
+  }
+}
+function progress(c){
+  const qa=c.qa||[]; return [qa.filter(q=>KNOWN[qid(c,q)]).length, qa.length];
+}
+// the card reads top to bottom: the point, the picture, then yourself tested. The detail
+// folds away with a count; a section opened once stays open on every card until closed.
+const SECOPEN=(()=>{try{return new Set(JSON.parse(localStorage.getItem('studySecs')||'["see","qa"]'));}catch(e){return new Set(['see','qa']);}})();
+function sec(id,label,count,body,q){
+  if(!body) return '';
+  const open=SECOPEN.has(id)||!!q;
+  return `<details class="st-sec" data-sec="${id}"${open?' open':''}><summary>${label}${count?` <span class="cnt">${count}</span>`:''}</summary>${body}</details>`;
+}
+function cardHTML(c,q){
+  const qa=c.qa||[], [kn,tot]=progress(c), H=h=>hiLite(h,q);
+  return `<div class="stc" data-k="${esc(nk(c.key))}">
+   <div class="st-h"><span class="st-num">${esc(c.num||'')}</span><b>${md(lastSeg(c.key))}</b>
+     ${tot?`<span class="st-prog${kn===tot?' done':''}">${kn} of ${tot} known</span>`:''}</div>
+   ${c.gist?`<div class="st-gist"><span class="lab">In short</span>${H(md(c.gist))}</div>`:''}
+   ${sec('see','See it',(c.visuals||[]).length,(c.visuals||[]).length?visualsHTML(c):'',q)}
+   ${sec('steps','How it works, step by step',(c.steps||[]).length,(c.steps||[]).length?`<ol class="st-steps">${
+      c.steps.map(s=>`<li>${H(md(s))}</li>`).join('')}</ol>`:'',q)}
+   ${sec('nums','Numbers to know',(c.numbers||[]).length,(c.numbers||[]).length?`<table class="st-nt">${
+      c.numbers.map(n=>`<tr><td>${H(md(n.what))}</td><td class="nv">${H(md(n.value))}</td></tr>`+
+        (n.from?`<tr class="fr"><td colspan="2">${md(n.from)}</td></tr>`:'<tr class="fr"><td colspan="2"></td></tr>')).join('')}</table>`:'',q)}
+   ${sec('qa','Test yourself',tot,tot?`<div class="st-qbar"><span>Click a question to see the answer.</span><button class="st-reveal">${SQUIZ?'Show all answers':'Hide all answers'}</button></div>`+
+      qa.map(x=>{const id=qid(c,x), open=!SQUIZ||SOPEN.has(id);
+        return `<div class="st-q${KNOWN[id]?' known':''}${open?' open':''}" data-q="${esc(id)}">
+        <div class="qq"><span class="qt">${H(md(x.q))}</span>
+          <label class="kn" title="Tick when you can answer this without looking"><input type="checkbox"${KNOWN[id]?' checked':''}>know it</label></div>
+        <div class="qa">${H(md(x.a))}${x.src?`<div class="qs">${md(x.src)}</div>`:''}</div></div>`;}).join(''):'',q)}
+   ${sec('traps','Weak points',(c.traps||[]).length,(c.traps||[]).length?`<ul class="st-traps">${
+      c.traps.map(t=>`<li>${H(md(t))}</li>`).join('')}</ul>`:'',q)}
+   ${sec('code','Where it is in the code',(c.code||[]).length,(c.code||[]).length?
+      c.code.map(p=>`<div class="st-cf"><span class="nm" data-p="${esc(p)}">${esc(p)}</span><div class="srcbox"></div></div>`).join(''):'',q)}
+   ${sec('bg','Background concepts',(c.concepts||[]).length,(c.concepts||[]).length?`<div class="st-cons">${
+      c.concepts.map(id=>`<button class="st-con" data-id="${esc(id)}">${esc(conceptName(id))}</button>`).join('')}</div>`:'',q)}
+  </div>`;
+}
+function conceptName(id){
+  const c=GDATA&&GDATA.concepts.find(x=>x.id===id);
+  return c?c.term:id.replace(/-/g,' ');
+}
+async function openSourceAt(spec,box){
+  const m=spec.match(/^(.*?)(?::(\d+)(?:[-–](\d+))?)?$/);
+  const path=m[1], a=m[2]?+m[2]:0, b=m[3]?+m[3]:a;
+  const r=await (await fetch('/api/code/file?path='+encodeURIComponent(path))).json();
+  if(!r.path){box.innerHTML='<p class="none">Could not read that file.</p>';return;}
+  const lines=numbered(r.text,path.split('.').pop()).split('\n')
+    .map((l,i)=>(a&&i+1>=a&&i+1<=b)?'<span class="hlline">'+l+'</span>':l);
+  box.innerHTML='<pre class="src">'+lines.join('\n')+'</pre>';
+  const pre=box.querySelector('pre'), hit=box.querySelector('.hlline');
+  if(pre&&hit) pre.scrollTop=Math.max(0,hit.offsetTop-pre.offsetTop-80);
+}
+async function openConcept(id){
+  GQ=''; GOPEN.add(id); showTab('gloss'); await drawGloss(true);
+  const el=GP.querySelector(`.gc[data-id="${CSS.escape(id)}"]`);
+  if(el) el.scrollIntoView({block:'start'});
+}
+function goToHeading(k){
+  const el=document.getElementById(KEYHEAD[k]);
+  if(el) el.scrollIntoView({block:'start',behavior:'smooth'});
+}
+// shared wiring for a rendered card: reveal an answer, tick it as known, open code or a concept
+function wireCards(root,redraw){
+  root.querySelectorAll('.st-q').forEach(el=>{
+    const id=el.dataset.q;
+    if(id) el.querySelector('.qq').addEventListener('click',ev=>{
+      if(ev.target.closest('.kn')) return;
+      el.classList.toggle('open'); el.classList.contains('open')?SOPEN.add(id):SOPEN.delete(id);});
+    const box=el.querySelector('.kn input'); if(!box) return;
+    box.addEventListener('change',ev=>{
+      if(ev.target.checked) KNOWN[id]=Date.now(); else delete KNOWN[id];
+      saveKnown(); el.classList.toggle('known',ev.target.checked);
+      const card=el.closest('.stc'), c=card&&SBY[card.dataset.k], pr=card&&card.querySelector('.st-prog');
+      if(c&&pr){const [kn,tot]=progress(c); pr.textContent=`${kn} of ${tot} known`; pr.classList.toggle('done',kn===tot);}
+    });
+  });
+  root.querySelectorAll('.st-reveal').forEach(b=>b.onclick=()=>{
+    SQUIZ=!SQUIZ; SOPEN.clear(); try{localStorage.setItem('studyQuiz',SQUIZ?'1':'0');}catch(e){} redraw();});
+  root.querySelectorAll('.st-cf .nm').forEach(nm=>nm.onclick=async()=>{
+    const box=nm.parentElement.querySelector('.srcbox');
+    if(box.innerHTML){box.innerHTML='';return;}
+    box.innerHTML='<p class="none">reading</p>'; await openSourceAt(nm.dataset.p,box);});
+  root.querySelectorAll('.st-con').forEach(b=>b.onclick=()=>openConcept(b.dataset.id));
+  root.querySelectorAll('details.st-sec').forEach(d=>d.addEventListener('toggle',()=>{
+    d.open?SECOPEN.add(d.dataset.sec):SECOPEN.delete(d.dataset.sec);
+    try{localStorage.setItem('studySecs',JSON.stringify([...SECOPEN]));}catch(e){}
+    if(d.open) fillVisuals(d);}));
+  fillVisuals(root);
+}
+// ---- "See it": a figure from the real data, a code excerpt, a table of real rows, a
+// diagram, or the row explorer, declared per card in its `visuals` list
+function visualsHTML(c){
+  return c.visuals.map(v=>{
+    const head=v.title?`<div class="vt">${md(v.title)}</div>`:'', cap=v.caption?`<div class="vc">${md(v.caption)}</div>`:'';
+    let body='';
+    if(v.type==='image') body=`<img src="img/${encodeURIComponent(v.file)}" alt="${esc(v.title||'')}" loading="lazy">`;
+    else if(v.type==='svg') body=(v.svg||'').replace('<svg','<svg class="dg"');
+    else if(v.type==='code') body=`<div class="vcode" data-p="${esc(v.file+(v.lines?':'+v.lines:''))}" data-only="1"><p class="none">reading ${esc(v.file)}</p></div>`;
+    else if(v.type==='table') body=`<div class="tw"><table><thead><tr>${(v.columns||[]).map(h=>`<th>${md(h)}</th>`).join('')}</tr></thead><tbody>${
+      (v.rows||[]).map(r=>'<tr>'+r.map(x=>`<td>${md(x)}</td>`).join('')+'</tr>').join('')}</tbody></table></div>`;
+    else if(v.type==='explorer') body=`<div class="ex" data-file="${esc(v.visitor||'')}" data-feat="${esc(v.feature||'')}" data-axis="${esc(v.axis||'valence')}"></div>`;
+    return `<div class="st-vis">${head}${body}${cap}</div>`;
+  }).join('');
+}
+async function fillVisuals(root){
+  root.querySelectorAll('.st-vis img').forEach(im=>im.onclick=()=>{
+    const z=document.getElementById('zoombox'); z.innerHTML=`<img src="${im.src}">`; z.style.display='flex';
+    z.onclick=()=>{z.style.display='none';};});
+  for(const box of root.querySelectorAll('.vcode[data-only]')){
+    delete box.dataset.only;
+    await excerpt(box.dataset.p,box);
+  }
+  root.querySelectorAll('.ex:not([data-on])').forEach(el=>{ if(!el.offsetParent) return; el.dataset.on='1'; explorer(el);});
+}
+// only the named lines, with a few lines of context, so the excerpt reads in place
+async function excerpt(spec,box){
+  const m=spec.match(/^(.*?)(?::(\d+)(?:[-–](\d+))?)?$/);
+  const path=m[1], a=m[2]?+m[2]:1, b=m[3]?+m[3]:(m[2]?+m[2]:40);
+  let r; try{ r=await (await fetch('/api/code/file?path='+encodeURIComponent(path))).json(); }catch(e){}
+  if(!r||!r.path){box.innerHTML='<p class="none">Could not read '+esc(path)+'.</p>';return;}
+  const all=numbered(r.text,path.split('.').pop()).split('\n');
+  const lo=Math.max(1,a-2), hi=Math.min(all.length,b+2);
+  box.innerHTML=`<div class="qs" style="margin:0 0 3px">${esc(path)}, lines ${a}–${b}</div><pre class="src">`+
+    all.slice(lo-1,hi).map((l,i)=>(lo+i>=a&&lo+i<=b)?'<span class="hlline">'+l+'</span>':l).join('\n')+'</pre>';
+}
+// ---- the row explorer: one visitor's session second by second. The top chart is the
+// rating with the carried model's out-of-fold prediction; the lower one is any feature.
+// Drag or hover to read every value at that second; the arrow keys step one second.
+let EXIDX=null;
+const EXGROUP=k=>k.startsWith('pupil__')?'Pupil':k.startsWith('eda__')?'EDA':k.startsWith('hrv__')?'HRV':
+  k.startsWith('speech_acoustics__')?'Speech acoustics (6 of 88)':k.startsWith('speech_content__')?'Speech content':'Cross-sensor block';
+const EXNAME=k=>k.replace(/^[a-z_]+__/,'').replace(/^speech_egemaps_/,'');
+const fmt=v=>v==null?'–':(Math.abs(v)>=1000?v.toFixed(0):Math.abs(v)>=10?v.toFixed(2):v.toFixed(3));
+function cccOf(y,p){
+  const xs=[],ys=[]; y.forEach((v,i)=>{if(v!=null&&p[i]!=null){xs.push(v);ys.push(p[i]);}});
+  const n=xs.length; if(n<3) return null;
+  const mx=xs.reduce((a,b)=>a+b)/n, my=ys.reduce((a,b)=>a+b)/n;
+  let vx=0,vy=0,cv=0; for(let i=0;i<n;i++){vx+=(xs[i]-mx)**2;vy+=(ys[i]-my)**2;cv+=(xs[i]-mx)*(ys[i]-my);}
+  vx/=n;vy/=n;cv/=n; const d=vx+vy+(mx-my)**2; return d?2*cv/d:0;
+}
+async function explorer(el){
+  if(!EXIDX){ try{EXIDX=await (await fetch('sdata/index.json')).json();}catch(e){EXIDX=[];} }
+  if(!EXIDX.length){el.innerHTML='<p class="none">No explorer data exported yet.</p>';return;}
+  const st={file:el.dataset.file||EXIDX[0].file, feat:el.dataset.feat, axis:el.dataset.axis||'valence', cur:0, D:null};
+  el.innerHTML=`<div class="ctl"><select class="v">${EXIDX.map(x=>`<option value="${esc(x.file)}">${esc(x.pid)} · ${esc(x.stream)} · ${x.n} s</option>`).join('')}</select>
+    <span class="seg"><button data-a="valence">valence</button><button data-a="arousal">arousal</button></span>
+    <select class="f"></select></div>
+    <div class="lg"><span><i style="background:var(--s1)"></i>rating</span><span><i style="background:var(--s2)"></i>model prediction (held out)</span>
+      <span><i style="background:var(--band);height:9px"></i>looking at a painting</span></div>
+    <svg class="c1" tabindex="0"></svg><div class="lg"><span><i style="background:var(--s3)"></i><b class="fl"></b></span></div><svg class="c2"></svg>
+    <div class="stat"></div><div class="ro"></div>`;
+  const $=s=>el.querySelector(s);
+  $('.v').value=st.file;
+  const load=async()=>{
+    st.D=await (await fetch('sdata/'+encodeURIComponent(st.file))).json();
+    const keys=Object.keys(st.D.features);
+    if(!st.feat||!keys.includes(st.feat)) st.feat=keys[0];
+    const groups=[...new Set(keys.map(EXGROUP))];
+    $('.f').innerHTML=groups.map(g=>`<optgroup label="${esc(g)}">${keys.filter(k=>EXGROUP(k)===g)
+      .map(k=>`<option value="${esc(k)}">${esc(EXNAME(k))}</option>`).join('')}</optgroup>`).join('');
+    $('.f').value=st.feat; st.cur=Math.min(st.cur,st.D.n-1); draw();
+  };
+  const W=()=>Math.max(280,el.clientWidth-22);
+  function path(vals,x,y){let d='',pen=false; vals.forEach((v,i)=>{ if(v==null){pen=false;return;}
+      d+=(pen?'L':'M')+x(i).toFixed(1)+' '+y(v).toFixed(1); pen=true;}); return d;}
+  function chart(svg,H,series,lo,hi,bands){
+    const w=W(), L=34, R=6, T=12, B=16, n=st.D.n; let lastLab=-1e9;
+    const x=i=>L+(w-L-R)*i/Math.max(1,n-1), y=v=>T+(H-T-B)*(1-(v-lo)/((hi-lo)||1));
+    svg.setAttribute('viewBox',`0 0 ${w} ${H}`); svg.setAttribute('height',H);
+    let s='';
+    if(bands){ let i=0; while(i<n){ if(st.D.painting[i]){ let j=i; while(j+1<n&&st.D.painting[j+1]===st.D.painting[i]) j++;
+        s+=`<rect x="${x(i)}" y="${T}" width="${Math.max(1,x(j)-x(i))}" height="${H-T-B}" fill="var(--band)"/>`;
+        const mid=(x(i)+x(j))/2; if(x(j)-x(i)>6&&mid-lastLab>26){ lastLab=mid; s+=`<text x="${mid}" y="${T-3}" font-size="9" text-anchor="middle" fill="var(--mut)">${st.D.painting[i]}</text>`;}
+        i=j+1; } else i++; } }
+    for(const t of [lo,(lo+hi)/2,hi]) s+=`<line x1="${L}" x2="${w-R}" y1="${y(t)}" y2="${y(t)}" stroke="var(--line)"/>`+
+      `<text x="${L-4}" y="${y(t)+3}" font-size="9" text-anchor="end" fill="var(--mut)">${fmt(t)}</text>`;
+    series.forEach(([vals,col])=>{s+=`<path d="${path(vals,x,y)}" fill="none" stroke="${col}" stroke-width="1.6" stroke-linejoin="round"/>`;});
+    s+=`<text x="${L}" y="${H-3}" font-size="9" fill="var(--mut)">${st.D.time[0]}</text><text x="${w-R}" y="${H-3}" font-size="9" text-anchor="end" fill="var(--mut)">${st.D.time[n-1]}</text>`;
+    s+=`<line class="cx" x1="${x(st.cur)}" x2="${x(st.cur)}" y1="${T}" y2="${H-B}" stroke="var(--fg)" stroke-width="1" opacity=".55"/>`;
+    svg.innerHTML=s; svg._x=x; svg._L=L; svg._R=R;
+  }
+  function draw(){
+    const D=st.D, fv=D.features[st.feat], ok=fv.filter(v=>v!=null);
+    el.querySelectorAll('.seg button').forEach(b=>b.classList.toggle('on',b.dataset.a===st.axis));
+    chart($('.c1'),150,[[D.labels[st.axis],'var(--s1)'],[D.pred[st.axis],'var(--s2)']],0,10,true);
+    const lo=ok.length?Math.min(...ok):0, hi=ok.length?Math.max(...ok):1;
+    chart($('.c2'),96,[[fv,'var(--s3)']],lo,hi===lo?lo+1:hi,false);
+    $('.fl').textContent=EXNAME(st.feat)+(ok.length<D.n?`  (missing on ${D.n-ok.length} of ${D.n} seconds, shown as gaps)`:'');
+    const c=cccOf(D.labels[st.axis],D.pred[st.axis]);
+    $('.stat').innerHTML=`This visitor's CCC between rating and held-out prediction: <b>${c==null?'–':(c>=0?'+':'')+c.toFixed(3)}</b>. `+
+      `The prediction comes from the model Experiment 2 carries forward, trained on every other visitor.`;
+    readout();
+  }
+  function readout(){
+    const D=st.D, i=st.cur, keys=Object.keys(D.features);
+    el.querySelectorAll('.cx').forEach(l=>{const x=l.ownerSVGElement._x(i); l.setAttribute('x1',x); l.setAttribute('x2',x);});
+    let rows='', g='';
+    keys.forEach(k=>{ if(EXGROUP(k)!==g){g=EXGROUP(k); rows+=`<tr class="grp"><td colspan="2">${esc(g)}</td></tr>`;}
+      rows+=`<tr class="${k===st.feat?'sel':''}" data-k="${esc(k)}"><td>${esc(EXNAME(k))}</td><td class="nv">${fmt(D.features[k][i])}</td></tr>`;});
+    $('.ro').innerHTML=`<div class="hd">Second ${i+1} of ${D.n} · ${D.time[i]} UTC · ${D.painting[i]?'looking at '+D.painting[i]:'not at a painting'}</div>
+      <div>rating: valence <b>${fmt(D.labels.valence[i])}</b>, arousal <b>${fmt(D.labels.arousal[i])}</b> · prediction: valence ${fmt(D.pred.valence[i])}, arousal ${fmt(D.pred.arousal[i])}</div>
+      <table>${rows}</table>`;
+    el.querySelectorAll('.ro tr[data-k]').forEach(tr=>tr.onclick=()=>{st.feat=tr.dataset.k; $('.f').value=st.feat; draw();});
+  }
+  const pick=ev=>{const svg=ev.currentTarget, r=svg.getBoundingClientRect(), w=W();
+    const px=(ev.clientX-r.left)*w/r.width, n=st.D.n, L=svg._L, R=svg._R;
+    st.cur=Math.max(0,Math.min(n-1,Math.round((px-L)/(w-L-R)*(n-1)))); readout();};
+  ['.c1','.c2'].forEach(s=>{const svg=$(s); svg.onpointermove=pick; svg.onpointerdown=pick;});
+  $('.c1').onkeydown=e=>{ if(e.key==='ArrowRight'||e.key==='ArrowLeft'){ e.preventDefault();
+      st.cur=Math.max(0,Math.min(st.D.n-1,st.cur+(e.key==='ArrowRight'?1:-1)*(e.shiftKey?10:1))); readout(); } };
+  $('.v').onchange=()=>{st.file=$('.v').value; load();};
+  $('.f').onchange=()=>{st.feat=$('.f').value; draw();};
+  el.querySelectorAll('.seg button').forEach(b=>b.onclick=()=>{st.axis=b.dataset.a; draw();});
+  let lastW=0; new ResizeObserver(()=>{const w=el.clientWidth; if(st.D&&Math.abs(w-lastW)>8){lastW=w; draw();}}).observe(el);
+  load();
+}
+function ordered(cards){
+  return cards.slice().sort((a,b)=>{
+    const oa=KORDER[nk(a.key)], ob=KORDER[nk(b.key)];
+    return (oa===undefined?1e6:oa)-(ob===undefined?1e6:ob)||(a.num||'').localeCompare(b.num||'',undefined,{numeric:true});});
+}
+function overviewHTML(){
+  const cards=ordered(SDATA.cards.filter(c=>!isData(c)));
+  let kn=0,tot=0; SDATA.cards.forEach(c=>{const [a,b]=progress(c); kn+=a; tot+=b;});
+  const groups=[];
+  cards.forEach(c=>{const ch=c.key.split(' > ')[0]; let g=groups.find(x=>x.ch===ch);
+    if(!g){g={ch,cards:[]}; groups.push(g);} g.cards.push(c);});
+  const dat=SDATA.cards.filter(isData);
+  const row=c=>{const [a,b]=progress(c), depth=c.key.split(' > ').length;
+    return `<div class="row${nk(c.key)===SCUR?' cur':''}" data-k="${esc(nk(c.key))}" style="padding-left:${6+(depth-1)*14}px">
+      <span class="n">${esc(c.num||'')}</span><span class="t">${md(lastSeg(c.key))}</span>
+      ${b?`<span class="st-bar2" title="${a} of ${b} known"><i style="width:${Math.round(100*a/b)}%"></i></span>`:''}</div>`;};
+  return `<div class="st-ov"><div class="st-tot">${kn} of ${tot} questions known across ${SDATA.cards.length} cards.</div>`+
+    groups.map(g=>`<h5>${md(lastSeg(g.ch))}</h5>`+g.cards.map(row).join('')).join('')+
+    (dat.length?`<h5>Data dossier</h5>`+dat.sort((a,b)=>(a.num||'').localeCompare(b.num||'')).map(row).join(''):'')+'</div>';
+}
+function searchHTML(){
+  const q=SQ.trim().toLowerCase(), has=t=>String(t||'').toLowerCase().includes(q);
+  const out=[];
+  ordered(SDATA.cards).forEach(c=>{
+    const lines=[];
+    if(has(c.gist)) lines.push(md(c.gist));
+    (c.steps||[]).filter(has).forEach(s=>lines.push(md(s)));
+    (c.traps||[]).filter(has).forEach(s=>lines.push('<b>Watch out:</b> '+md(s)));
+    (c.numbers||[]).filter(n=>has(n.what)||has(n.value)).forEach(n=>lines.push(md(n.what)+': <b>'+md(n.value)+'</b>'));
+    const qs=(c.qa||[]).filter(x=>has(x.q)||has(x.a));
+    if(!lines.length&&!qs.length) return;
+    out.push(`<div class="st-hit"><div class="ht" data-k="${esc(nk(c.key))}">${esc(c.num||'')} ${md(isData(c)?'Data: '+lastSeg(c.key):lastSeg(c.key))}</div>`+
+      qs.map(x=>`<div class="st-q open hit"><div class="qq"><span class="qt">${hiLite(md(x.q),SQ.trim())}</span></div>
+        <div class="qa">${hiLite(md(x.a),SQ.trim())}</div></div>`).join('')+
+      lines.slice(0,4).map(l=>`<div class="hl">${hiLite(l,SQ.trim())}</div>`).join('')+'</div>');
+  });
+  return out.length?`<div class="st-tot">${out.length} cards mention “${esc(SQ.trim())}”.</div>`+out.join('')
+                   :'<p class="none">Nothing in the study cards mentions that.</p>';
+}
+// every trap from every card on one page, in thesis order: the list to rehearse last
+function trapsHTML(){
+  const cards=ordered(SDATA.cards).filter(c=>(c.traps||[]).length);
+  const n=cards.reduce((a,c)=>a+c.traps.length,0);
+  return `<div class="st-tot">${n} weak points across ${cards.length} cards. Each is something a sharp examiner could press on, with the honest answer.</div>`+
+    cards.map(c=>`<div class="st-hit"><div class="ht" data-k="${esc(nk(c.key))}">${esc(c.num||'')} ${md(isData(c)?'Data: '+lastSeg(c.key):lastSeg(c.key))}</div>
+      <ul class="st-traps">${c.traps.map(t=>`<li>${md(t)}</li>`).join('')}</ul></div>`).join('');
+}
+function crumbHTML(c){
+  const parts=c.key.split(' > '), links=[];
+  for(let i=0;i<parts.length;i++){
+    const k=nk(parts.slice(0,i+1).join(' > '));
+    const t=md(parts[i].replace(/--/g,'\u2013'));
+    links.push(i<parts.length-1&&SBY[k]?`<a data-k="${esc(k)}">${t}</a>`:`<span>${t}</span>`);
+  }
+  return `<div class="st-crumb">${links.join(' › ')}${KEYHEAD[nk(c.key)]?'<a class="go" data-go="1">show in thesis</a>':''}</div>`;
+}
+async function drawStudy(force){
+  if(force||!SDATA) await fetchStudy();
+  if(!SDATA){SP.innerHTML='<p class="none">No study cards yet.</p>';return;}
+  if(!GDATA){ try{ const g=await (await fetch('/api/concepts')).json(); if(g.concepts){GDATA=g;GREV=g.rev;} }catch(e){} }
+  if(!SCUR&&SPOS) SCUR=cardKeyFor(SPOS);
+  const c=SCUR&&SBY[SCUR];
+  let body;
+  if(SQ.trim()) body=searchHTML();
+  else if(SOVER) body=overviewHTML();
+  else if(STRAPS) body=trapsHTML();
+  else body=c?crumbHTML(c)+cardHTML(c):
+    '<p class="none">Scroll to a section of the thesis and its study card appears here. "All sections" lists every card.</p>';
+  SP.innerHTML=`<div class="st-bar"><input id="sfind" placeholder="Search every card, e.g. normalised, columns, median" value="${esc(SQ)}">
+    <div class="st-tg"><label><input type="checkbox" id="sfollow"${SFOLLOW?' checked':''}>Follow my reading</label>
+      <button id="straps" class="grow">${STRAPS?'Back to the card':'Weak points'}</button>
+      <button id="sover">${SOVER?'Back to the card':'All sections'}</button></div></div>`+
+    ((SDATA.errors||[]).length?`<p class="st-err">Could not read: ${esc(SDATA.errors.join('; '))}</p>`:'')+body;
+  const f=SP.querySelector('#sfind');
+  f.oninput=()=>{SQ=f.value; drawStudy(); const g=SP.querySelector('#sfind');
+                 if(g){g.focus(); g.setSelectionRange(g.value.length,g.value.length);}};
+  SP.querySelector('#sfollow').onchange=e=>{SFOLLOW=e.target.checked;
+    try{localStorage.setItem('studyFollow',SFOLLOW?'1':'0');}catch(err){}
+    if(SFOLLOW&&SPOS){const k=cardKeyFor(SPOS); if(k){SCUR=k; drawStudy();}}};
+  SP.querySelector('#sover').onclick=()=>{SOVER=!SOVER; STRAPS=false; SQ=''; drawStudy(); document.getElementById('dbody').scrollTop=0;};
+  SP.querySelector('#straps').onclick=()=>{STRAPS=!STRAPS; SOVER=false; SQ=''; drawStudy(); document.getElementById('dbody').scrollTop=0;};
+  const pick=k=>{const card=SBY[k]; if(!card) return;
+    if(isData(card)){DOPEN.add(k); showTab('data'); const el=DP.querySelector(`.dc[data-k="${CSS.escape(k)}"]`); if(el) el.scrollIntoView({block:'start'}); return;}
+    SCUR=k; SOVER=false; STRAPS=false; SQ=''; if(KEYHEAD[k]){ SFOLLOW&&goToHeading(k); }
+    drawStudy(); document.getElementById('dbody').scrollTop=0;};
+  SP.querySelectorAll('.st-ov .row,.st-hit .ht').forEach(r=>r.onclick=()=>pick(r.dataset.k));
+  SP.querySelectorAll('.st-crumb a[data-k]').forEach(a=>a.onclick=()=>{
+    SCUR=a.dataset.k; drawStudy(); document.getElementById('dbody').scrollTop=0;});
+  const go=SP.querySelector('.st-crumb .go'); if(go) go.onclick=()=>goToHeading(SCUR);
+  wireCards(SP,()=>drawStudy());
+}
+async function drawData(force){
+  if(force||!SDATA) await fetchStudy();
+  const q=DQ.trim().toLowerCase();
+  const cards=(SDATA?SDATA.cards:[]).filter(isData)
+    .filter(c=>!q||JSON.stringify(c).toLowerCase().includes(q))
+    .sort((a,b)=>(a.num||'').localeCompare(b.num||'',undefined,{numeric:true}));
+  DP.innerHTML=`<div class="st-bar"><input id="dfind" placeholder="Search the data dossier" value="${esc(DQ)}">
+    <div class="st-tg"><span>What the data is, row by row and column by column.</span>
+    <button id="dall" class="grow">${cards.every(c=>DOPEN.has(nk(c.key)))&&cards.length?'Close all':'Open all'}</button></div></div>`+
+    (cards.length?'':'<p class="none">No data cards yet.</p>')+
+    cards.map(c=>{const k=nk(c.key), [kn,tot]=progress(c);
+      return `<div class="dc" data-k="${esc(k)}"><div class="h"><span class="st-num">${esc(c.num||'')}</span><b>${md(lastSeg(c.key))}</b>
+        ${tot?`<span class="st-prog${kn===tot?' done':''}">${kn} of ${tot}</span>`:''}</div>
+        <div class="dbody"${DOPEN.has(k)||q?'':' hidden'}>${DOPEN.has(k)||q?cardHTML(c,DQ.trim()):''}</div></div>`;}).join('');
+  const f=DP.querySelector('#dfind');
+  f.oninput=()=>{DQ=f.value; drawData(); const g=DP.querySelector('#dfind');
+                 if(g){g.focus(); g.setSelectionRange(g.value.length,g.value.length);}};
+  DP.querySelector('#dall').onclick=()=>{const all=cards.every(c=>DOPEN.has(nk(c.key)));
+    cards.forEach(c=>all?DOPEN.delete(nk(c.key)):DOPEN.add(nk(c.key))); drawData();};
+  DP.querySelectorAll('.dc>.h').forEach(h=>h.onclick=()=>{const k=h.parentElement.dataset.k;
+    DOPEN.has(k)?DOPEN.delete(k):DOPEN.add(k); drawData();});
+  wireCards(DP,()=>drawData());
+}
+// ---- the Viva tab: every question an examiner or supervisor could ask, with a short
+// answer to say out loud. Grouped by topic; practice mode asks one at a time, unknown first.
+const VP=document.getElementById('vpanel');
+let VQ='', VLEVEL='all', VPRAC=null, VSHOWN=false;
+const vid=v=>'viva#'+nk(v.q).slice(0,100);
+function speak(text,btn){
+  const was=btn&&btn.classList.contains('on'); speechSynthesis.cancel();
+  VP.querySelectorAll('.vsay.on').forEach(b=>b.classList.remove('on'));
+  if(was) return;
+  const u=new SpeechSynthesisUtterance(text.replace(/\*\*/g,'')); if(VOICE) u.voice=VOICE;
+  u.rate=parseFloat(localStorage.getItem('thesisRate')||'1')||1;
+  u.onend=u.onerror=()=>btn&&btn.classList.remove('on');
+  if(btn) btn.classList.add('on'); speechSynthesis.speak(u);
+}
+function vivaRef(v){
+  const c=v.ref&&SDATA.cards.find(x=>(x.num||'')===v.ref);
+  return c&&KEYHEAD[nk(c.key)]?`<a class="vref" data-k="${esc(nk(c.key))}">§ ${esc(v.ref)}</a>`:(v.ref?`<span class="vref">§ ${esc(v.ref)}</span>`:'');
+}
+function vivaItem(v,open){
+  const id=vid(v);
+  return `<div class="st-q vq${KNOWN[id]?' known':''}${open?' open':''}" data-q="${esc(id)}">
+    <div class="qq"><span class="qt">${hiLite(md(v.q),VQ.trim())}</span>
+      <span class="lvl ${esc(v.level||'')}">${esc(v.level||'')}</span>
+      <label class="kn" title="Tick when you can say this without looking"><input type="checkbox"${KNOWN[id]?' checked':''}>know it</label></div>
+    <div class="qa">${hiLite(md(v.a),VQ.trim())}
+      <div class="vmeta"><button class="vsay" title="Read the answer aloud">▶ say it</button>
+        <span>${esc(v.who==='either'?'examiner or supervisor':(v.who||''))}</span>${vivaRef(v)}</div></div></div>`;
+}
+async function drawViva(force){
+  if(force||!SDATA) await fetchStudy();
+  const all=(SDATA&&SDATA.viva)||[];
+  if(!all.length){VP.innerHTML='<p class="none">The question bank is being written; it appears here as soon as it is saved.</p>';return;}
+  const known=all.filter(v=>KNOWN[vid(v)]).length;
+  const bar=`<div class="st-bar"><input id="vfind" placeholder="Search the questions and answers" value="${esc(VQ)}">
+    <div class="st-tg"><span class="seg">${['all','basic','deep','hard'].map(l=>`<button data-l="${l}" class="${VLEVEL===l?'on':''}">${l}</button>`).join('')}</span>
+      <button id="vprac" class="grow">${VPRAC?'Back to the list':'Practise: one at a time'}</button>
+      <button id="vall">${VSHOWN?'Hide answers':'Show answers'}</button></div>
+    <div class="st-tot">${known} of ${all.length} answers known. Basic questions will almost certainly come up; hard ones press on a weakness.</div></div>`;
+  if(VPRAC){ VP.innerHTML=bar+practiceHTML(all); wireViva(all); return; }
+  const q=VQ.trim().toLowerCase();
+  const list=all.filter(v=>(VLEVEL==='all'||v.level===VLEVEL)&&(!q||(v.q+' '+v.a+' '+(v.cat||'')).toLowerCase().includes(q)));
+  const cats=[...new Set(list.map(v=>v.cat||'Other'))];
+  VP.innerHTML=bar+(list.length?'':'<p class="none">No question matches.</p>')+cats.map(cat=>{
+    const items=list.filter(v=>(v.cat||'Other')===cat), kn=items.filter(v=>KNOWN[vid(v)]).length;
+    return `<details class="st-sec vcat"${q||VLEVEL!=='all'||!SECOPEN.has('vivaclosed:'+cat)?' open':''} data-sec="vivaclosed:${esc(cat)}">
+      <summary>${esc(cat)} <span class="cnt">${kn} / ${items.length}</span></summary>${items.map(v=>vivaItem(v,VSHOWN||!!q)).join('')}</details>`;}).join('');
+  wireViva(all);
+}
+function practiceHTML(all){
+  const pool=all.filter(v=>VLEVEL==='all'||v.level===VLEVEL);
+  if(!VPRAC.cur){
+    const unknown=pool.filter(v=>!KNOWN[vid(v)]);
+    const from=unknown.length?unknown:pool;
+    VPRAC.cur=from[Math.floor(Math.random()*from.length)]; VPRAC.shown=false;
+  }
+  const v=VPRAC.cur;
+  return `<div class="vprac"><div class="vcat2">${esc(v.cat||'')} · ${esc(v.level||'')} · ${esc(v.who||'')}</div>
+    <div class="vbig">${md(v.q)}</div>
+    ${VPRAC.shown?`<div class="vans">${md(v.a)}</div><div class="vmeta"><button class="vsay">▶ say it</button>${vivaRef(v)}</div>
+      <div class="vbtns"><button class="primary" data-r="1">I knew it</button><button data-r="0">Not yet</button></div>`
+     :`<p class="none">Say your answer out loud first, then check.</p><div class="vbtns"><button class="primary" id="vshow">Show the answer</button><button id="vskip">Skip</button></div>`}
+    <div class="st-tot">${VPRAC.done||0} answered this round · ${VPRAC.right||0} known</div></div>`;
+}
+function wireViva(all){
+  const f=VP.querySelector('#vfind');
+  f.oninput=()=>{VQ=f.value; drawViva(); const g=VP.querySelector('#vfind'); if(g){g.focus(); g.setSelectionRange(g.value.length,g.value.length);}};
+  VP.querySelectorAll('.seg button').forEach(b=>b.onclick=()=>{VLEVEL=b.dataset.l; if(VPRAC) VPRAC.cur=null; drawViva();});
+  VP.querySelector('#vprac').onclick=()=>{VPRAC=VPRAC?null:{done:0,right:0}; VQ=''; drawViva(); document.getElementById('dbody').scrollTop=0;};
+  VP.querySelector('#vall').onclick=()=>{VSHOWN=!VSHOWN; drawViva();};
+  VP.querySelectorAll('details.vcat').forEach(d=>d.addEventListener('toggle',()=>{
+    d.open?SECOPEN.delete(d.dataset.sec):SECOPEN.add(d.dataset.sec);
+    try{localStorage.setItem('studySecs',JSON.stringify([...SECOPEN]));}catch(e){}}));
+  VP.querySelectorAll('.vq').forEach(el=>{
+    const id=el.dataset.q;
+    el.querySelector('.qq').addEventListener('click',ev=>{ if(!ev.target.closest('.kn')) el.classList.toggle('open'); });
+    el.querySelector('.kn input').addEventListener('change',ev=>{
+      if(ev.target.checked) KNOWN[id]=Date.now(); else delete KNOWN[id];
+      saveKnown(); el.classList.toggle('known',ev.target.checked);});
+  });
+  VP.querySelectorAll('.vsay').forEach(b=>b.onclick=ev=>{ev.stopPropagation();
+    const box=b.closest('.qa')||VP.querySelector('.vans'); speak(box.firstChild?box.textContent.replace(/▶ say it.*$/s,''):'',b);});
+  VP.querySelectorAll('.vref[data-k]').forEach(a=>a.onclick=()=>{ SCUR=a.dataset.k; goToHeading(a.dataset.k); showTab('study'); });
+  if(VPRAC){
+    const next=()=>{VPRAC.cur=null; drawViva();};
+    const sh=VP.querySelector('#vshow'); if(sh) sh.onclick=()=>{VPRAC.shown=true; drawViva();};
+    const sk=VP.querySelector('#vskip'); if(sk) sk.onclick=next;
+    VP.querySelectorAll('.vbtns [data-r]').forEach(b=>b.onclick=()=>{
+      VPRAC.done=(VPRAC.done||0)+1;
+      if(b.dataset.r==='1'){VPRAC.right=(VPRAC.right||0)+1; KNOWN[vid(VPRAC.cur)]=Date.now(); saveKnown();}
+      next();});
+  }
+}
+
+// a link such as /#study/4.2.2 opens the Study tab at that section, and /#data the dossier
+async function openFromHash(){
+  const m=location.hash.match(/^#(study|data|viva)(?:\/(.+))?$/);
+  if(!m) return;
+  await fetchStudy();
+  TAB=m[1]; setDock(true);
+  if(m[1]==='study'&&m[2]){
+    const c=SDATA&&SDATA.cards.find(x=>(x.num||'')===decodeURIComponent(m[2]));
+    if(c){ SCUR=nk(c.key); const el=document.getElementById(KEYHEAD[SCUR]);
+      if(el) el.scrollIntoView({block:'start'}); drawStudy(); }
+  }
+}
+addEventListener('hashchange',openFromHash);
+
+// while the Study or Data tab is open, a changed card file redraws it, keeping what is open
+function pollStudy(){
+  if(STIMER) return;
+  STIMER=setInterval(async()=>{
+    if(document.hidden||(TAB!=='study'&&TAB!=='data'&&TAB!=='viva')) return;
+    const a=document.activeElement;
+    if(a&&(a.id==='sfind'||a.id==='dfind'||a.id==='vfind')) return;
+    if(TAB==='viva'&&VPRAC) return;
+    if(await fetchStudy()){ const box=document.getElementById('dbody'), s=box.scrollTop;
+      TAB==='study'?drawStudy():TAB==='data'?drawData():drawViva(); box.scrollTop=s; }
+  },5000);
+}
+
+// ---- the right dock: two tabs in one place, remembered between visits
+const DOCK=document.getElementById('dock');
+const TABS={study:SP, viva:document.getElementById('vpanel'), data:DP, notes:PANEL, cites:CP, code:KP, gloss:GP};
+let TAB=localStorage.getItem('thesisTab')||'study';
+if(!TABS[TAB]) TAB='study';
+
+function closeCites(){ if(CTIMER){clearInterval(CTIMER); CTIMER=null;} }
+
+function showTab(name){
+  TAB=name;
+  try{localStorage.setItem('thesisTab',name);}catch(e){}
+  for(const k in TABS){
+    TABS[k].classList.toggle('on',k===name);
+    document.getElementById(k).classList.toggle('on',k===name);
+  }
+  if(name==='study'||name==='data'||name==='viva'){
+    closeCites(); if(KTIMER){clearInterval(KTIMER); KTIMER=null;}
+    name==='study'?drawStudy(true):name==='data'?drawData(true):drawViva(true); pollStudy(); return;
+  }
+  if(name==='gloss'){ closeCites(); drawGloss(true); return; }
+  if(name==='code'){
+    closeCites(); drawCode(true);
+    // the scripts and their outputs change on disk while this is open
+    if(!KTIMER) KTIMER=setInterval(()=>{if(!document.hidden) drawCode(false);},4000);
+    return;
+  }
+  if(KTIMER){clearInterval(KTIMER); KTIMER=null;}
+  if(name==='cites'){
+    drawCites(true);
+    // the verdicts, the bibliography and the thesis all change outside this page, so an
+    // open tab keeps asking rather than showing whatever was true when it opened
+    if(!CTIMER) CTIMER=setInterval(()=>{if(!document.hidden) drawCites(false);},3000);
+  }else{
+    closeCites(); drawPanel();
+  }
+}
+function setDock(open){
+  document.body.classList.toggle('dock',open);
+  try{localStorage.setItem('thesisDock',open?'1':'');}catch(e){}
+  if(open) showTab(TAB);
+  else {closeCites(); if(KTIMER){clearInterval(KTIMER); KTIMER=null;}}
+}
+// the code view needs far more width than a notes list, so the panel is draggable and has
+// a one-click wide mode; both survive a reload
+const NARROW=470;
+// three sizes, because reading a 370-line script and skimming a notes list want different panels
+function sizes(){ return [NARROW, Math.round(innerWidth*0.72), innerWidth]; }
+function setDockWidth(px,fromDrag){
+  const full=px>=innerWidth-2;
+  const w=full?innerWidth:Math.max(320,Math.min(px,innerWidth-240));
+  document.documentElement.style.setProperty('--dockw',w+'px');
+  document.body.classList.toggle('dockfull',full);
+  try{localStorage.setItem('thesisDockW',w);}catch(e){}
+  const b=document.getElementById('dwide');
+  if(b) b.textContent = full ? 'Narrow' : (w>innerWidth*0.55 ? 'Full' : 'Wide');
+}
+try{const w=parseInt(localStorage.getItem('thesisDockW')||'',10);
+    if(w) setDockWidth(w);}catch(e){}
+document.getElementById('dwide').onclick=()=>{
+  const cur=DOCK.getBoundingClientRect().width, [n,wide,full]=sizes();
+  setDockWidth(cur>=innerWidth-2 ? n : (cur>innerWidth*0.55 ? full : wide));
+};
+(function(){
+  const grip=document.getElementById('dgrip');
+  let start=0, from=0;
+  grip.onpointerdown=e=>{
+    start=e.clientX; from=DOCK.getBoundingClientRect().width;
+    grip.setPointerCapture(e.pointerId);
+    grip.classList.add('on'); document.body.classList.add('resizing');
+  };
+  grip.onpointermove=e=>{
+    if(!grip.classList.contains('on')) return;
+    setDockWidth(from + (start - e.clientX));
+  };
+  const stop=e=>{grip.classList.remove('on'); document.body.classList.remove('resizing');
+                 if(e.pointerId!==undefined&&grip.hasPointerCapture&&grip.hasPointerCapture(e.pointerId))
+                   grip.releasePointerCapture(e.pointerId);};
+  grip.onpointerup=stop; grip.onpointercancel=stop;
+})();
+// full screen: the browser's own mode where it exists; otherwise (iPhone Safari) the
+// study panel is widened to the whole window, which is the closest a phone allows
+(function(){
+  const btn=document.getElementById('fstog'), root=document.documentElement;
+  const isFs=()=>!!(document.fullscreenElement||document.webkitFullscreenElement);
+  const can=!!(root.requestFullscreen||root.webkitRequestFullscreen);
+  const label=()=>{btn.textContent=(isFs()||document.body.classList.contains('dockfull'))?'Exit full screen':'Full screen';};
+  btn.onclick=()=>{
+    if(can&&!document.body.classList.contains('dockfull')||isFs()){
+      if(isFs()) (document.exitFullscreen||document.webkitExitFullscreen).call(document);
+      else{
+        const r=(root.requestFullscreen||root.webkitRequestFullscreen).call(root);
+        // a browser can still refuse (settings, embedded view): widen the panel instead
+        if(r&&r.catch) r.catch(()=>{ if(!document.body.classList.contains('dock')) setDock(true);
+          setDockWidth(innerWidth); btn.textContent='Exit full screen'; });
+      }
+    }else{
+      const full=document.body.classList.contains('dockfull');
+      if(!document.body.classList.contains('dock')) setDock(true);
+      setDockWidth(full?NARROW:innerWidth); label();
+    }
+  };
+  document.addEventListener('fullscreenchange',label);
+  document.addEventListener('webkitfullscreenchange',label);
+})();
+document.getElementById('dtog').onclick=()=>setDock(!document.body.classList.contains('dock'));
+document.getElementById('dclose').onclick=()=>setDock(false);
+document.getElementById('study').onclick=()=>showTab('study');
+document.getElementById('data').onclick=()=>showTab('data');
+document.getElementById('viva').onclick=()=>showTab('viva');
+document.getElementById('notes').onclick=()=>showTab('notes');
+document.getElementById('cites').onclick=()=>showTab('cites');
+document.getElementById('code').onclick=()=>showTab('code');
+document.getElementById('gloss').onclick=()=>showTab('gloss');
+setTimeout(()=>{try{if(localStorage.getItem('thesisDock')) setDock(true);}catch(e){}},0);
+
+// ---- the overflow menu: the controls that are set once and then left alone
+(function(){
+  const lvl=document.getElementById('rlvl');
+  const get=()=>parseFloat(localStorage.getItem('thesisRate')||'1')||1;
+  const set=r=>{r=Math.max(0.6,Math.min(2,Math.round(r*10)/10));
+    try{localStorage.setItem('thesisRate',r);}catch(e){}
+    lvl.textContent=r.toFixed(1)+'\u00d7';
+    if(SPEAKING) stopSpeaking();};   // a rate change restarts cleanly rather than half-applying
+  set(get());
+  document.getElementById('rslow').onclick=e=>{e.stopPropagation(); set(get()-0.1);};
+  document.getElementById('rfast').onclick=e=>{e.stopPropagation(); set(get()+0.1);};
+  lvl.onclick=e=>{e.stopPropagation(); set(1);};
+})();
+
+const MENU=document.getElementById('menu');
+document.getElementById('mtog').onclick=e=>{e.stopPropagation(); MENU.classList.toggle('on');};
+document.addEventListener('click',e=>{if(!MENU.contains(e.target)) MENU.classList.remove('on');});
+document.addEventListener('keydown',e=>{
+  if(e.key!=='Escape') return;
+  if(SPEAKING) return stopSpeaking();
+  if(MENU.classList.contains('on')) return MENU.classList.remove('on');
+  setDock(false);
+});
+
+const CARD=document.getElementById('card');
+function showCard(el,k){
+  const e=BIB[k]; if(!e) return;
+  const cls=e.verdict==='OK'?'ok':(e.verdict==='WEAK'?'warn':(e.verdict?'bad':''));
+  CARD.innerHTML=`<div class="k">${esc(k)}</div><p class="f">${esc(e.full)}</p>
+    <div class="tags">
+      ${e.verdict?`<span class="tag ${cls}">audit: ${esc(e.verdict)}</span>`:'<span class="tag">not audited</span>'}
+      ${e.pdf?`<a href="/paper/${esc(k)}" target="_blank">open the paper</a>`
+             :'<span class="tag">no local copy</span>'}
+    </div>
+    ${e.note?`<div class="note">${esc(e.note)}</div>`:''}`;
+  CARD.style.display='block';
+  const r=el.getBoundingClientRect(), w=CARD.offsetWidth, h=CARD.offsetHeight;
+  CARD.style.left=Math.min(Math.max(8,r.left),innerWidth-w-8)+'px';
+  CARD.style.top=(r.bottom+h+12>innerHeight?r.top-h-8:r.bottom+8)+'px';
+}
+function focusCitation(k){
+  // a click wants the whole record, not the hover summary: open the dock on this key
+  CFOCUS=k; CFILT='all'; TAB='cites'; CARD.style.display='none';
+  if(document.body.classList.contains('dock')) showTab('cites'); else setDock(true);
+}
+document.addEventListener('click',ev=>{
+  const c=ev.target.closest('.cite');
+  if(c&&c.dataset.k){ev.stopPropagation();focusCitation(c.dataset.k);}
+  else if(!ev.target.closest('#card')) CARD.style.display='none';
+},true);
+let hov;
+document.addEventListener('mouseover',ev=>{
+  const c=ev.target.closest('.cite');
+  if(!c||!c.dataset.k) return;
+  clearTimeout(hov); hov=setTimeout(()=>showCard(c,c.dataset.k),350);
+});
+document.addEventListener('mouseout',ev=>{if(ev.target.closest('.cite')) clearTimeout(hov);});
+
+document.getElementById('reload').onclick=load;
+document.getElementById('compile').onclick=async e=>{
+  const s=document.getElementById('status');e.target.disabled=true;s.textContent='compiling';
+  const j=await (await fetch('/api/compile',{method:'POST'})).json();
+  s.textContent=j.line+' ('+j.seconds+'s)';e.target.disabled=false;
+  const f=document.getElementById('pdf'); if(f.src) f.src='/pdf?'+Date.now()+'#view=FitH';
+};
+load();
+</script>
+<style>
+#compile,#reload,#view,#notes,.addnote,.ins,#dgrip+#dtabs #notes{display:none!important}
+p.par,.struct{cursor:default!important} p.par:hover{background:transparent!important}
+.struct:hover{outline-color:transparent!important}
+a[href^="/paper/"]{display:none!important}
+</style>
+<script>
+// nothing opens for editing in the snapshot
+edit=function(){};
+if(typeof TAB!=='undefined'&&TAB==='notes'){TAB='study';}
+</script>
+<style>
+#welcome{position:fixed;inset:0;z-index:80;display:flex;align-items:flex-start;justify-content:center;
+  background:color-mix(in srgb,var(--bg) 82%,transparent);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);
+  overflow-y:auto;padding:max(24px,env(safe-area-inset-top,0px)) 16px 32px}
+#welcome[hidden]{display:none}
+.wl{background:var(--pg);color:var(--fg);max-width:880px;width:100%;border:1px solid var(--line);border-radius:14px;
+  box-shadow:0 18px 60px var(--sh);padding:clamp(22px,4vw,44px);margin:auto 0;font-family:ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif}
+.wl .kick{font-size:12px;letter-spacing:.16em;text-transform:uppercase;color:var(--acc);font-weight:600}
+.wl h1{font:400 clamp(26px,4.2vw,38px)/1.18 Georgia,"Times New Roman",serif;margin:12px 0 10px;text-wrap:balance}
+.wl .meta{color:var(--mut);font-size:14px;margin:0 0 20px}
+.wl .sum{font:17px/1.6 Georgia,serif;margin:0 0 24px;max-width:66ch}
+.wl .sum b{font-weight:600}
+.wl .stats{display:grid;grid-template-columns:repeat(4,1fr);gap:1px;background:var(--line);border:1px solid var(--line);
+  border-radius:10px;overflow:hidden;margin:0 0 26px}
+.wl .stat{background:var(--pg);padding:14px 16px}
+.wl .stat .sv{font:600 22px/1.2 Georgia,serif;font-variant-numeric:tabular-nums;color:var(--fg)}
+.wl .stat .sl{font-size:12.5px;color:var(--mut);margin-top:4px;line-height:1.4}
+.wl .acts{display:grid;grid-template-columns:repeat(2,1fr);gap:12px}
+.wl .act{display:flex;flex-direction:column;gap:4px;text-align:left;padding:15px 17px;border:1px solid var(--line);border-radius:10px;
+  background:var(--pg);color:var(--fg);font:inherit;cursor:pointer;text-decoration:none;transition:border-color .15s,background .15s}
+.wl .act:hover,.wl .act:focus-visible{border-color:var(--acc);background:color-mix(in srgb,var(--acc) 5%,var(--pg));outline:none}
+.wl .act b{font:600 16px Georgia,serif}
+.wl .act span{font-size:13.5px;color:var(--mut);line-height:1.45}
+.wl .act.primary{border-color:var(--acc);background:color-mix(in srgb,var(--acc) 9%,var(--pg))}
+.wl .foot{display:flex;flex-wrap:wrap;gap:8px 18px;justify-content:space-between;margin-top:22px;font-size:12.5px;color:var(--mut)}
+.wl .foot label{display:flex;gap:6px;align-items:center;cursor:pointer}
+#wabout{font-size:13px}
+@media (max-width:640px){.wl .stats{grid-template-columns:repeat(2,1fr)}.wl .acts{grid-template-columns:1fr}}
+@media (prefers-reduced-motion:reduce){.wl .act{transition:none}}
+</style>
+<div id="welcome" role="dialog" aria-modal="true" aria-labelledby="wtitle"><div class="wl">
+  <div class="kick">MSc Interaction Technology &middot; University of Twente &middot; 2026</div>
+  <h1 id="wtitle">Multimodal Affect Recognition for Unseen Visitors in a Free-Roaming VR Museum</h1>
+  <p class="meta">Akshaj Somanpura Rajendran &middot; Supervisor: Shenghui Wang</p>
+  <p class="sum">Can worn sensors tell a museum guide how a visitor feels, second by second, for someone it has never met?
+    Across five experiments on a free-roaming VR visit, <b>no sensor, combination or adaptation rose above chance</b>, and the ratings
+    show why: the painting explains almost none of a rating, the visitor most of it.</p>
+  <div class="stats">
+    <div class="stat"><div class="sv">38</div><div class="sl">visitors: 22 rated live, 16 rated afterwards</div></div>
+    <div class="stat"><div class="sv">114</div><div class="sl">sensor features per second, from eyes, skin, heart and voice</div></div>
+    <div class="stat"><div class="sv">+0.084</div><div class="sl">best score for an unseen visitor (CCC; 0 is chance)</div></div>
+    <div class="stat"><div class="sv">1.5% vs 65%</div><div class="sl">of a rating: the painting explains at most 1.5%, the visitor up to 65%</div></div>
+  </div>
+  <div class="acts">
+    <button class="act primary" data-go="read"><b>Read the thesis</b><span>Chapter by chapter, with a study card for each section beside it.</span></button>
+    <button class="act" data-go="study"><b>Study guide</b><span>What each section did in the code, with figures from the data and likely questions.</span></button>
+    <button class="act" data-go="viva"><b>Practise the viva</b><span>Examiner and supervisor questions with short spoken answers, one at a time.</span></button>
+    <a class="act" href="../deck/" target="_blank" rel="noopener"><b>Defence slides &nearr;</b><span>Eleven slides, about ten minutes. Arrows to move, N for notes.</span></a>
+  </div>
+  <div class="foot"><span>Read-only copy of the submitted thesis and its defence material.</span>
+    <label><input type="checkbox" id="wskip"> Skip this screen next time</label></div>
+</div></div>
+<script>
+(function(){
+  const w=document.getElementById('welcome'), get=k=>{try{return localStorage.getItem(k);}catch(e){return null;}},
+        set=(k,v)=>{try{localStorage.setItem(k,v);}catch(e){}};
+  const close=()=>{ w.hidden=true; if(document.getElementById('wskip').checked) set('welcomeSkip','1'); };
+  if(get('welcomeSkip')==='1') w.hidden=true;
+  w.addEventListener('click',e=>{ if(e.target===w) close(); });
+  document.addEventListener('keydown',e=>{ if(e.key==='Escape'&&!w.hidden) close(); });
+  w.querySelectorAll('[data-go]').forEach(b=>b.onclick=()=>{ const g=b.dataset.go; close();
+    if(g==='study'||g==='viva'){ if(!document.body.classList.contains('dock')) setDock(true); showTab(g); } });
+  // a way back to this screen, and to the slides, from the top bar
+  const bar=document.querySelector('header'), ref=document.getElementById('dtog');
+  const about=document.createElement('button'); about.id='wabout'; about.textContent='About';
+  about.onclick=()=>{ w.hidden=false; };
+  const slides=document.createElement('a'); slides.href='../deck/'; slides.target='_blank'; slides.rel='noopener';
+  slides.textContent='Slides ↗'; slides.style.cssText='font:13px ui-sans-serif;color:var(--acc);text-decoration:none;padding:6px 4px';
+  if(bar&&ref){ bar.insertBefore(about,ref); bar.insertBefore(slides,ref); }
+  // first visit: open the study panel so the cards are visible beside the text
+  if(get('thesisDock')===null){ set('thesisTab','study'); setTimeout(()=>{ try{ setDock(true); showTab('study'); }catch(e){} },50); }
+})();
+</script>
+</body></html>

@@ -1,0 +1,296 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex">
+<title>Unseen Visitors Defence</title>
+<style>
+:root{--ink:#16181d;--ink2:#4a4d55;--mut:#8b8e96;--acc:#2a78d6;--acc2:#eb6834;--paper:#fcfcfb;
+  --line:#e4e3df;--bg:#1b1c1f;--ui:#2a2b30;--uifg:#e8e8ea}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%;background:var(--bg);overflow:hidden;
+  font-family:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+#wrap{position:fixed;inset:0;display:flex;align-items:center;justify-content:center}
+.stage{width:1600px;height:900px;background:var(--paper);color:var(--ink);position:relative;
+  transform-origin:center center;box-shadow:0 10px 40px rgba(0,0,0,.45);overflow:hidden}
+/* slide typography, in stage pixels */
+.s{position:absolute;inset:0;padding:78px 96px 70px;display:flex;flex-direction:column}
+.s .kick{font-size:22px;font-weight:600;letter-spacing:.14em;text-transform:uppercase;color:var(--acc);margin:0 0 14px}
+.s h1{font:600 54px/1.15 Georgia,"Times New Roman",serif;margin:0 0 34px;letter-spacing:-.01em}
+.s ul{margin:0;padding:0;list-style:none}
+.s li{font-size:31px;line-height:1.38;color:var(--ink2);margin:0 0 20px;padding-left:34px;position:relative}
+.s li::before{content:'';position:absolute;left:4px;top:.55em;width:11px;height:11px;border-radius:50%;background:var(--acc)}
+.s li strong{color:var(--ink);font-weight:650}
+.s .body{flex:1;display:flex;gap:48px;min-height:0}
+.s .body .txt{flex:1;min-width:0}
+.s .body .pic{flex:1.25;display:flex;flex-direction:column;justify-content:center;min-width:0}
+.s .pic img{width:100%;max-height:600px;object-fit:contain;border-radius:10px;background:#fff;
+  border:1px solid var(--line)}
+.s .cap{font-size:20px;color:var(--mut);margin-top:12px;text-align:center}
+.s.layout-points li{font-size:33px}
+.s.layout-image .pic img{max-height:640px}
+.s.layout-title{justify-content:center;padding:0 140px;background:
+  linear-gradient(135deg,rgba(42,120,214,.07),rgba(235,104,52,.05))}
+.s.layout-title h1{font-size:66px;margin-bottom:44px}
+.s.layout-title ul li{padding-left:0;font-size:30px;margin-bottom:12px}
+.s.layout-title ul li::before{display:none}
+.s.layout-title ul li:first-child{color:var(--ink);font-size:34px;font-weight:600}
+.s .foot{position:absolute;left:96px;right:96px;bottom:30px;display:flex;justify-content:space-between;
+  font-size:17px;color:var(--mut)}
+.s.layout-title .foot{display:none}
+/* edit mode */
+body.edit [contenteditable]{outline:2px dashed rgba(42,120,214,.35);outline-offset:4px;border-radius:4px}
+body.edit [contenteditable]:focus{outline:2px solid var(--acc);background:rgba(42,120,214,.05)}
+body.edit .s li strong{font-weight:inherit;color:inherit}
+.empty{color:#b9bbc0!important;font-style:italic}
+/* the control bar */
+#bar{position:fixed;left:50%;bottom:14px;transform:translateX(-50%);display:flex;gap:6px;align-items:center;
+  background:var(--ui);color:var(--uifg);padding:7px 9px;border-radius:12px;box-shadow:0 6px 24px rgba(0,0,0,.4);
+  font-size:13px;z-index:20;transition:opacity .25s}
+#bar.hide{opacity:0;pointer-events:none}
+#bar button,#bar select{white-space:nowrap;background:#3a3b41;color:var(--uifg);border:0;border-radius:7px;padding:7px 11px;font:13px inherit;cursor:pointer}
+#bar button:hover{background:#4a4b52}
+#bar button.on{background:var(--acc);color:#fff}
+#bar .n{min-width:64px;text-align:center;font-variant-numeric:tabular-nums}
+#bar .sep{width:1px;height:22px;background:#4a4b52;margin:0 3px}
+#bar #save.dirty{background:var(--acc2);color:#fff}
+#edbar{display:none;gap:6px;align-items:center}
+body.edit #edbar{display:flex}
+#msg{position:fixed;top:14px;left:50%;transform:translateX(-50%);background:var(--ui);color:var(--uifg);
+  padding:8px 14px;border-radius:9px;font-size:13px;z-index:30;display:none}
+/* speaker notes strip */
+#notes{position:fixed;left:0;right:0;bottom:0;height:30vh;background:#111214;color:#e9e9ec;z-index:15;
+  display:none;padding:18px 28px 70px;font:19px/1.55 Georgia,serif;overflow:auto;border-top:1px solid #333}
+body.shownotes #notes{display:block}
+#notes textarea{width:100%;height:100%;background:transparent;color:inherit;border:1px dashed #555;border-radius:6px;
+  font:inherit;padding:8px;resize:none}
+#notes .h{font:12px ui-sans-serif;letter-spacing:.1em;text-transform:uppercase;color:#8b8e96;margin-bottom:6px}
+/* overview */
+#over{position:fixed;inset:0;background:var(--bg);z-index:25;display:none;overflow:auto;padding:28px}
+body.overview #over{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:18px;align-content:start}
+.th{position:relative;aspect-ratio:16/9;cursor:pointer;border-radius:8px;overflow:hidden;outline:3px solid transparent}
+.th.cur{outline-color:var(--acc)}
+.th .stage{position:absolute;left:0;top:0;transform-origin:0 0;box-shadow:none;pointer-events:none}
+.th .no{position:absolute;left:8px;top:6px;background:rgba(0,0,0,.6);color:#fff;font-size:12px;padding:2px 7px;border-radius:5px;z-index:2}
+/* presenter window */
+body.presenter{overflow:auto;background:#111214;color:#e9e9ec}
+body.presenter #wrap,body.presenter #bar,body.presenter #notes{display:none}
+#pres{display:none;height:100vh;padding:18px;gap:18px;grid-template-columns:3fr 2fr;grid-template-rows:auto 1fr}
+body.presenter #pres{display:grid}
+#pres .clock{grid-column:1/3;display:flex;gap:18px;align-items:center;font:600 34px ui-sans-serif;font-variant-numeric:tabular-nums}
+#pres .clock .of{font-size:18px;color:#8b8e96;font-weight:400}
+#pres .clock button{font:14px ui-sans-serif;padding:7px 12px;border-radius:7px;border:0;background:#2a2b30;color:#e9e9ec;cursor:pointer}
+#pres .clock .warn{color:#eda100}#pres .clock .over{color:#e34948}
+#pres .slot{position:relative;width:100%;aspect-ratio:16/9;background:#000;border-radius:8px;overflow:hidden}
+#pres .slot .stage{position:absolute;left:0;top:0;transform-origin:0 0;box-shadow:none}
+#pres .lab{font:12px ui-sans-serif;letter-spacing:.1em;text-transform:uppercase;color:#8b8e96;margin:0 0 6px}
+#pres .pn{font:24px/1.55 Georgia,serif;overflow:auto;white-space:pre-wrap}
+#pres .nav{display:flex;gap:8px;margin-top:10px}
+#pres .nav button{font:15px ui-sans-serif;padding:9px 16px;border-radius:8px;border:0;background:#2a2b30;color:#e9e9ec;cursor:pointer}
+</style></head><body>
+<script>
+const _f=window.fetch.bind(window);
+window.fetch=(u,o)=>String(u)==='/api/slides'?_f('slides.json'):
+  (o&&o.method==='POST'?Promise.resolve(new Response('{"ok":false,"message":"read-only copy"}')):_f(u,o));
+</script>
+
+<div id="wrap"><div class="stage" id="stage"></div></div>
+<div id="notes"></div>
+<div id="over"></div>
+<div id="msg"></div>
+<div id="pres">
+  <div class="clock"><span id="pt">0:00</span><span class="of" id="pof">of 10:00</span>
+    <button id="pstart">Start timer</button><button id="preset">Reset</button>
+    <span class="of" id="pcount"></span></div>
+  <div><div class="lab">Now</div><div class="slot" id="pnow"></div>
+    <div class="nav"><button id="pprev">&larr; Back</button><button id="pnext">Next &rarr;</button></div>
+    <div class="lab" style="margin-top:16px">Speaker notes</div><div class="pn" id="pnotes"></div></div>
+  <div><div class="lab">Next</div><div class="slot" id="pnextslide"></div></div>
+</div>
+<div id="bar">
+  <button id="prev" title="Previous (left arrow)">&larr;</button><span class="n" id="count">1 / 1</span>
+  <button id="next" title="Next (right arrow or space)">&rarr;</button><span class="sep"></span>
+  <button id="bnotes" title="Speaker notes (N)">Notes</button>
+  <button id="bpres" title="Presenter window with timer (P)">Presenter</button>
+  <button id="bover" title="All slides (O)">Overview</button>
+  <button id="bfs" title="Full screen (F)">Full screen</button><span class="sep"></span>
+  <button id="bedit" title="Edit (E)">Edit</button>
+  <span id="edbar">
+    <select id="elayout" title="Layout"><option value="title">Title</option><option value="points">Points</option>
+      <option value="split">Points + picture</option><option value="image">Picture</option></select>
+    <select id="eimage" title="Picture"></select>
+    <button id="eadd" title="New slide after this one">+ slide</button>
+    <button id="edup" title="Duplicate this slide">Duplicate</button>
+    <button id="eleft" title="Move slide earlier">&lsaquo;</button><button id="eright" title="Move slide later">&rsaquo;</button>
+    <button id="edel" title="Delete this slide">Delete</button>
+    <button id="save" title="Save to slides.json (Cmd/Ctrl+S)">Save</button>
+  </span>
+</div>
+<script>
+const PRESENTER=location.pathname.startsWith('/presenter');
+let DOC=null, STAMP='', IMGS=[], I=0, EDIT=false, DIRTY=false;
+const chan=('BroadcastChannel' in window)?new BroadcastChannel('deck'):null;
+const $=id=>document.getElementById(id);
+const esc=s=>String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const md=s=>esc(s).replace(/\*\*([^*]+)\*\*/g,'<strong>$1</strong>').replace(/\*([^*]+)\*/g,'<em>$1</em>');
+function flash(t){const m=$('msg'); m.textContent=t; m.style.display='block'; clearTimeout(flash.t); flash.t=setTimeout(()=>m.style.display='none',2200);}
+
+// ---- rendering: one function draws a slide into any stage, big or thumbnail
+function slideHTML(sl,n,total,editable){
+  const ce=editable?' contenteditable="true" spellcheck="true"':'';
+  const txt=(v,f,cls,ph)=>editable?`<div class="${cls||''}${v?'':' empty'}" data-f="${f}"${ce} data-ph="${esc(ph)}">${esc(v||ph)}</div>`:(v?`<div class="${cls||''}">${md(v)}</div>`:'');
+  const lis=(sl.points||[]).map((p,i)=>`<li data-i="${i}"${ce}>${editable?esc(p):md(p)}</li>`).join('')||(editable?`<li data-i="0"${ce} class="empty">New point</li>`:'');
+  const lay=sl.layout||'points';
+  const title=editable?`<h1 data-f="title"${ce}>${esc(sl.title||'')}</h1>`:`<h1>${md(sl.title||'')}</h1>`;
+  const pic=sl.image?`<div class="pic"><img src="img/${encodeURIComponent(sl.image)}" alt="">${txt(sl.caption,'caption','cap','Caption')}</div>`:(editable&&lay!=='points'&&lay!=='title'?'<div class="pic"><p class="cap">Pick a picture in the bar below</p></div>':'');
+  let inner;
+  if(lay==='title') inner=`${title}<ul>${lis}</ul>`;
+  else if(lay==='image') inner=`${txt(sl.kicker,'kicker','kick','Label')}${title}<div class="body">${pic}</div>`;
+  else if(lay==='split') inner=`${txt(sl.kicker,'kicker','kick','Label')}${title}<div class="body"><div class="txt"><ul>${lis}</ul></div>${pic}</div>`;
+  else inner=`${txt(sl.kicker,'kicker','kick','Label')}${title}<div class="body"><div class="txt"><ul>${lis}</ul></div></div>`;
+  return `<div class="s layout-${lay}">${inner}<div class="foot"><span>${esc(DOC.title||'')}</span><span>${n} / ${total}</span></div></div>`;
+}
+function fit(){
+  const st=$('stage'), w=innerWidth, h=innerHeight-(document.body.classList.contains('shownotes')?innerHeight*0.3:0);
+  const k=Math.min(w/1600,h/900)*0.98; st.style.transform=`scale(${k})`;
+  $('wrap').style.bottom=document.body.classList.contains('shownotes')?'30vh':'0';
+}
+function draw(){
+  const S=DOC.slides; I=Math.max(0,Math.min(I,S.length-1)); const sl=S[I];
+  $('stage').innerHTML=slideHTML(sl,I+1,S.length,EDIT);
+  $('count').textContent=`${I+1} / ${S.length}`;
+  $('elayout').value=sl.layout||'points';
+  $('eimage').innerHTML='<option value="">no picture</option>'+IMGS.map(n=>`<option${n===sl.image?' selected':''}>${esc(n)}</option>`).join('');
+  $('notes').innerHTML=EDIT?`<div class="h">Speaker notes (editable)</div><textarea id="nt">${esc(sl.notes||'')}</textarea>`
+                           :`<div class="h">Speaker notes · slide ${I+1}</div>${esc(sl.notes||'No notes for this slide.')}`;
+  if(EDIT) wireEdit();
+  if(document.body.classList.contains('overview')) drawOver();
+  fit();
+}
+function thumb(el,idx){
+  const st=document.createElement('div'); st.className='stage';
+  st.innerHTML=slideHTML(DOC.slides[idx],idx+1,DOC.slides.length,false); el.appendChild(st);
+  const k=el.clientWidth/1600; st.style.transform=`scale(${k})`;
+}
+function drawOver(){
+  const o=$('over'); o.innerHTML='';
+  DOC.slides.forEach((s,i)=>{const d=document.createElement('div'); d.className='th'+(i===I?' cur':'');
+    d.innerHTML=`<span class="no">${i+1}</span>`; o.appendChild(d); thumb(d,i);
+    d.onclick=()=>{go(i); toggle('overview',false);};});
+}
+
+// ---- navigation, shared with the presenter window
+function go(i,quiet){ I=Math.max(0,Math.min(i,DOC.slides.length-1)); PRESENTER?drawPres():draw();
+  if(!quiet&&chan) chan.postMessage({i:I}); if(PRESENTER&&!quiet) startTimer(false); }
+if(chan) chan.onmessage=e=>{ if(typeof e.data.i==='number') go(e.data.i,true); if(e.data.reload) load(); };
+function toggle(cls,on){ document.body.classList.toggle(cls,on); fit(); if(cls==='overview'&&document.body.classList.contains('overview')) drawOver(); }
+
+// ---- edit mode: edits land in DOC as you type; Save writes the file
+function collect(){
+  const sl=DOC.slides[I], st=$('stage');
+  st.querySelectorAll('[data-f]').forEach(el=>{ if(el.classList.contains('empty')) return; sl[el.dataset.f]=el.innerText.trim(); });
+  const lis=[...st.querySelectorAll('li[data-i]')].filter(l=>!l.classList.contains('empty')).map(l=>l.innerText.trim()).filter(Boolean);
+  sl.points=lis;
+  const nt=$('nt'); if(nt) sl.notes=nt.value;
+}
+function dirty(on){ DIRTY=on; $('save').classList.toggle('dirty',on); $('save').textContent=on?'Save •':'Save'; }
+function wireEdit(){
+  const st=$('stage');
+  st.querySelectorAll('[contenteditable]').forEach(el=>{
+    el.addEventListener('focus',()=>{ if(el.classList.contains('empty')){el.textContent=''; el.classList.remove('empty');} });
+    el.addEventListener('input',()=>{ collect(); dirty(true); });
+    el.addEventListener('paste',e=>{ e.preventDefault(); document.execCommand('insertText',false,(e.clipboardData||window.clipboardData).getData('text/plain')); });
+    el.addEventListener('keydown',e=>{
+      e.stopPropagation();
+      if(e.key==='Escape'){el.blur(); return;}
+      if(el.tagName==='LI'&&e.key==='Enter'){ e.preventDefault(); collect();
+        const i=+el.dataset.i; DOC.slides[I].points.splice(i+1,0,''); dirty(true); draw();
+        const n=$('stage').querySelector(`li[data-i="${i+1}"]`); if(n){n.textContent=''; n.classList.remove('empty'); n.focus();} }
+      else if(el.tagName==='LI'&&e.key==='Backspace'&&!el.innerText.trim()){ e.preventDefault();
+        const i=+el.dataset.i; DOC.slides[I].points.splice(i,1); dirty(true); draw();
+        const p=$('stage').querySelector(`li[data-i="${Math.max(0,i-1)}"]`); if(p){p.focus(); document.getSelection().collapse(p,p.childNodes.length);} }
+      else if(el.tagName!=='LI'&&e.key==='Enter'){ e.preventDefault(); el.blur(); }
+    });
+  });
+  const nt=$('nt'); if(nt){ nt.addEventListener('input',()=>{collect(); dirty(true);}); nt.addEventListener('keydown',e=>e.stopPropagation()); }
+}
+async function saveDoc(){
+  if(EDIT) collect();
+  const r=await (await fetch('/api/save',{method:'POST',headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({doc:DOC,stamp:STAMP})})).json();
+  if(r.ok){ STAMP=r.stamp; dirty(false); flash('Saved to slides.json'); if(chan) chan.postMessage({reload:1}); }
+  else flash('Not saved: '+r.message);
+}
+function setEdit(on){ EDIT=on; document.body.classList.toggle('edit',on); $('bedit').classList.toggle('on',on);
+  $('bedit').textContent=on?'Done editing':'Edit'; if(!on) collect(); draw(); }
+
+// ---- presenter window: this slide, the next, the notes, and a timer against the target
+let T0=null, TT=null;
+function startTimer(force){ if(T0&&!force) return; T0=Date.now(); try{localStorage.setItem('deckT0',T0);}catch(e){} tick(); }
+function tick(){
+  const lim=(DOC.minutes||10)*60, s=T0?Math.floor((Date.now()-T0)/1000):0;
+  const el=$('pt'); el.textContent=`${Math.floor(s/60)}:${String(s%60).padStart(2,'0')}`;
+  el.className=s>=lim?'over':(s>=lim*0.8?'warn':''); $('pof').textContent=`of ${DOC.minutes||10}:00`;
+}
+function drawPres(){
+  const S=DOC.slides; I=Math.max(0,Math.min(I,S.length-1));
+  const put=(slot,idx)=>{slot.innerHTML=''; if(idx<S.length){thumb(slot,idx);} else slot.innerHTML='<p style="color:#8b8e96;padding:20px">End</p>';};
+  put($('pnow'),I); put($('pnextslide'),I+1);
+  $('pnotes').textContent=S[I].notes||'No notes for this slide.';
+  $('pcount').textContent=`slide ${I+1} of ${S.length}`; tick();
+}
+
+async function load(){
+  const r=await (await fetch('/api/slides')).json(); DOC=r.doc; STAMP=r.stamp; IMGS=r.images;
+  document.title=DOC.title||'Presentation';
+  const h=parseInt(location.hash.slice(1)); if(h) I=h-1;
+  if(PRESENTER){ document.body.classList.add('presenter');
+    try{const t=+localStorage.getItem('deckT0'); if(t&&Date.now()-t<3*3600e3) T0=t;}catch(e){}
+    drawPres(); clearInterval(TT); TT=setInterval(tick,500); }
+  else draw();
+}
+
+// ---- wiring
+$('prev').onclick=()=>go(I-1); $('next').onclick=()=>go(I+1);
+$('bnotes').onclick=()=>{toggle('shownotes'); $('bnotes').classList.toggle('on',document.body.classList.contains('shownotes'));};
+$('bpres').onclick=()=>window.open('/presenter#'+(I+1),'deckpresenter','width=1200,height=760');
+$('bover').onclick=()=>toggle('overview');
+function fullscreen(){ const d=document.documentElement;
+  if(document.fullscreenElement||document.webkitFullscreenElement) (document.exitFullscreen||document.webkitExitFullscreen).call(document);
+  else if(d.requestFullscreen||d.webkitRequestFullscreen){ const p=(d.requestFullscreen||d.webkitRequestFullscreen).call(d); if(p&&p.catch) p.catch(()=>flash('This browser blocked full screen'));} }
+$('bfs').onclick=fullscreen;
+$('bedit').onclick=()=>setEdit(!EDIT);
+$('save').onclick=saveDoc;
+$('elayout').onchange=e=>{collect(); DOC.slides[I].layout=e.target.value; dirty(true); draw();};
+$('eimage').onchange=e=>{collect(); DOC.slides[I].image=e.target.value||undefined; if(e.target.value&&DOC.slides[I].layout==='points') DOC.slides[I].layout='split'; dirty(true); draw();};
+$('eadd').onclick=()=>{collect(); DOC.slides.splice(I+1,0,{layout:'points',kicker:'',title:'New slide',points:['First point'],notes:''}); dirty(true); go(I+1);};
+$('edup').onclick=()=>{collect(); DOC.slides.splice(I+1,0,JSON.parse(JSON.stringify(DOC.slides[I]))); dirty(true); go(I+1);};
+$('edel').onclick=()=>{ if(DOC.slides.length<2) return; if(!confirm('Delete this slide? (Not saved until you press Save.)')) return;
+  DOC.slides.splice(I,1); dirty(true); go(Math.min(I,DOC.slides.length-1));};
+$('eleft').onclick=()=>{ if(I<1) return; collect(); const S=DOC.slides; [S[I-1],S[I]]=[S[I],S[I-1]]; dirty(true); go(I-1);};
+$('eright').onclick=()=>{ const S=DOC.slides; if(I>=S.length-1) return; collect(); [S[I+1],S[I]]=[S[I],S[I+1]]; dirty(true); go(I+1);};
+$('pprev').onclick=()=>go(I-1); $('pnext').onclick=()=>go(I+1);
+$('pstart').onclick=()=>startTimer(true); $('preset').onclick=()=>{T0=null; try{localStorage.removeItem('deckT0');}catch(e){} tick();};
+document.addEventListener('keydown',e=>{
+  if((e.metaKey||e.ctrlKey)&&e.key.toLowerCase()==='s'){ e.preventDefault(); saveDoc(); return; }
+  if(e.target.closest&&e.target.closest('[contenteditable],textarea,select')) return;
+  const k=e.key;
+  if(['ArrowRight','ArrowDown','PageDown',' '].includes(k)){e.preventDefault(); go(I+1);}
+  else if(['ArrowLeft','ArrowUp','PageUp'].includes(k)){e.preventDefault(); go(I-1);}
+  else if(k==='Home') go(0); else if(k==='End') go(DOC.slides.length-1);
+  else if(k==='f'||k==='F') fullscreen();
+  else if(k==='n'||k==='N') $('bnotes').click();
+  else if(k==='p'||k==='P') $('bpres').click();
+  else if(k==='o'||k==='O') toggle('overview');
+  else if(k==='e'||k==='E') setEdit(!EDIT);
+  else if(k==='Escape'){ if(document.body.classList.contains('overview')) toggle('overview',false); else if(EDIT) setEdit(false); }
+});
+// the bar fades while presenting and comes back when the pointer moves
+let hideT; addEventListener('mousemove',()=>{ $('bar').classList.remove('hide'); clearTimeout(hideT);
+  hideT=setTimeout(()=>{ if(!EDIT) $('bar').classList.add('hide'); },2500); });
+addEventListener('resize',()=>{fit(); if(document.body.classList.contains('overview')) drawOver(); if(PRESENTER) drawPres();});
+addEventListener('beforeunload',e=>{ if(DIRTY){ e.preventDefault(); e.returnValue=''; } });
+// swipe on a phone or tablet
+let sx=null; addEventListener('touchstart',e=>{sx=e.touches[0].clientX;},{passive:true});
+addEventListener('touchend',e=>{ if(sx==null||EDIT) return; const dx=e.changedTouches[0].clientX-sx; if(Math.abs(dx)>50) go(I+(dx<0?1:-1)); sx=null; });
+load();
+</script>
+<style>#bedit,#edbar,#bpres{display:none!important}</style>
+<script>setEdit=function(){};</script>
+</body></html>
