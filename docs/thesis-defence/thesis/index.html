@@ -315,6 +315,9 @@ p.par.ro:hover{background:transparent}
 .st-crumb .go{margin-left:auto;color:var(--acc);border:0;cursor:pointer}
 .st-h{display:flex;align-items:baseline;gap:8px;margin:2px 0 10px}
 .st-h b{font:600 16px/1.3 Georgia,serif}
+.st-listen{font:12.5px ui-sans-serif;padding:5px 12px;margin:0 0 10px;border-radius:99px}
+.st-listen.on{background:var(--acc);color:#fff;border-color:transparent}
+.dc .dbody .st-listen{margin-top:2px}
 .st-num{font:12px ui-sans-serif;color:var(--mut);white-space:nowrap}
 .st-prog{margin-left:auto;font-size:11px;color:var(--mut);white-space:nowrap}
 .st-prog.done{color:var(--ok)}
@@ -1353,6 +1356,7 @@ function cardHTML(c,q){
   return `<div class="stc" data-k="${esc(nk(c.key))}">
    <div class="st-h"><span class="st-num">${esc(c.num||'')}</span><b>${md(lastSeg(c.key))}</b>
      ${tot?`<span class="st-prog${kn===tot?' done':''}">${kn} of ${tot} known</span>`:''}</div>
+   <button class="st-listen${LISTENING===nk(c.key)?' on':''}" data-k="${esc(nk(c.key))}">${LISTENING===nk(c.key)?'\u25a0 Stop':'\u25b6 Listen'}</button>
    ${c.gist?`<div class="st-gist"><span class="lab">In short</span>${H(md(c.gist))}</div>`:''}
    ${sec('see','See it',(c.visuals||[]).length,(c.visuals||[]).length?visualsHTML(c):'',q)}
    ${sec('steps','How it works, step by step',(c.steps||[]).length,(c.steps||[]).length?`<ol class="st-steps">${
@@ -1420,6 +1424,7 @@ function wireCards(root,redraw){
     if(box.innerHTML){box.innerHTML='';return;}
     box.innerHTML='<p class="none">reading</p>'; await openSourceAt(nm.dataset.p,box);});
   root.querySelectorAll('.st-con').forEach(b=>b.onclick=()=>openConcept(b.dataset.id));
+  root.querySelectorAll('.st-listen').forEach(b=>b.onclick=()=>listen(b.dataset.k));
   root.querySelectorAll('details.st-sec').forEach(d=>d.addEventListener('toggle',()=>{
     d.open?SECOPEN.add(d.dataset.sec):SECOPEN.delete(d.dataset.sec);
     try{localStorage.setItem('studySecs',JSON.stringify([...SECOPEN]));}catch(e){}
@@ -1608,6 +1613,37 @@ function crumbHTML(c){
     links.push(i<parts.length-1&&SBY[k]?`<a data-k="${esc(k)}">${t}</a>`:`<span>${t}</span>`);
   }
   return `<div class="st-crumb">${links.join(' › ')}${KEYHEAD[nk(c.key)]?'<a class="go" data-go="1">show in thesis</a>':''}</div>`;
+}
+// ---- Listen: read a card aloud. The card's own spoken script when it has one (written in full
+// sentences for a voice); otherwise its text cleaned of symbols, code and file names.
+let LISTENING=null;
+function speakable(c){
+  const say=(SDATA&&SDATA.speech||{});
+  const own=Object.keys(say).find(k=>nk(k)===nk(c.key));
+  if(own) return say[own];
+  const parts=[lastSeg(c.key)+'.', c.gist||'', ...(c.steps||[]), ...((c.traps||[]).slice(0,2))];
+  return parts.join(' ').replace(/`[^`]*`/g,' ').replace(/\S*[\/_]\S*\.(py|csv|json|tex)\S*/g,' ')
+    .replace(/\S+\.(py|csv|json|tex)\b/g,' ').replace(/\S*_\S*/g,' ')
+    .replace(/\*\*/g,'').replace(/\$/g,'').replace(/%/g,' per cent').replace(/\u00b1/g,' plus or minus ')
+    .replace(/\u2265|>=/g,' at least ').replace(/\u2264|<=/g,' at most ').replace(/\u00d7/g,' times ')
+    .replace(/\u2192|->/g,' to ').replace(/~/g,'about ').replace(/&/g,' and ').replace(/[()\[\]]/g,', ')
+    .replace(/\s*:\s*/g,': ').replace(/\s+/g,' ').trim();
+}
+function stopListening(){ speechSynthesis.cancel(); LISTENING=null;
+  document.querySelectorAll('.st-listen.on').forEach(b=>{b.classList.remove('on'); b.textContent='\u25b6 Listen';}); }
+function listen(k){
+  const was=LISTENING===k; stopListening(); if(was) return;
+  const c=SBY[k]; if(!c) return;
+  // one utterance per sentence: some browsers cut a long utterance off part-way
+  const sentences=(speakable(c).match(/[^.!?]+[.!?]+|[^.!?]+$/g)||[]).map(x=>x.trim()).filter(Boolean);
+  if(!sentences.length) return;
+  LISTENING=k;
+  document.querySelectorAll(`.st-listen[data-k="${CSS.escape(k)}"]`).forEach(b=>{b.classList.add('on'); b.textContent='\u25a0 Stop';});
+  const rate=parseFloat((()=>{try{return localStorage.getItem('thesisRate');}catch(e){return null;}})()||'1')||1;
+  sentences.forEach((t,i)=>{ const u=new SpeechSynthesisUtterance(t); if(VOICE) u.voice=VOICE; u.rate=rate;
+    if(i===sentences.length-1) u.onend=()=>{ if(LISTENING===k) stopListening(); };
+    u.onerror=e=>{ if(e.error!=='interrupted'&&e.error!=='canceled'&&LISTENING===k) stopListening(); };
+    speechSynthesis.speak(u); });
 }
 async function drawStudy(force){
   if(force||!SDATA) await fetchStudy();
